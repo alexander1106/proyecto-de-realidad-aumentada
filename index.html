@@ -79,12 +79,14 @@ h1 span{background:linear-gradient(90deg,var(--acc),var(--acc2));-webkit-backgro
 #tabs button{flex:1;padding:9px 4px;border-radius:12px;font-size:13px;font-weight:650;color:var(--mut);display:flex;flex-direction:column;align-items:center;gap:3px}
 #tabs button svg{width:20px;height:20px}
 #tabs button.on{color:var(--acc);background:rgba(34,211,238,.1)}
-#grip{align-self:center;padding:8px 26px 6px;margin-bottom:-2px}
-#grip i{display:block;width:44px;height:5px;border-radius:3px;background:rgba(226,232,240,.55)}
-body.mini #sheet{display:none}
+#grip{align-self:center;display:flex;align-items:center;gap:7px;padding:7px 18px;margin-bottom:6px;border-radius:999px;background:var(--panel);border:1px solid var(--line);color:var(--txt,#e2e8f0);font-size:12px;font-weight:700;backdrop-filter:blur(14px)}
+#grip svg{width:14px;height:14px;transition:transform .2s}
+body.mini #grip svg{transform:rotate(180deg)}
+body.mini #sheet,body.mini #tabs{display:none}
 @media (min-width:900px){
   #grip{display:none}
   body.mini #sheet{display:block}
+  body.mini #tabs{display:flex}
   #side{top:64px;right:16px;left:auto;bottom:16px;width:410px}
   #tabs{order:-1;border-radius:16px 16px 0 0;border:1px solid var(--line);border-bottom:0;padding:6px}
   #tabs button{flex-direction:row;justify-content:center;gap:7px}
@@ -194,7 +196,7 @@ textarea{width:100%;min-height:86px;resize:vertical;padding:12px;border-radius:1
   </div>
 
   <div id="side" class="ui hidden">
-    <button id="grip" title="Mostrar u ocultar el panel"><i></i></button>
+    <button id="grip" title="Mostrar u ocultar el panel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 9l6 6 6-6"/></svg><span id="gripTxt">Ocultar panel</span></button>
     <div id="sheet"></div>
     <div id="tabs">
       <button data-m="explorar" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>Explorar</button>
@@ -1218,7 +1220,9 @@ function checkReto(){
   ui.retoMsg={ok,html,res:mine};renderSheet();runQuery(sql,true);
 }
 document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{ui.tab=b.dataset.m;document.body.classList.remove('mini');renderSheet()});
-$('grip').onclick=()=>document.body.classList.toggle('mini');
+function gripTxt(){$('gripTxt').textContent=document.body.classList.contains('mini')?'Mostrar panel':'Ocultar panel'}
+$('grip').onclick=()=>{document.body.classList.toggle('mini');gripTxt()};
+document.querySelectorAll('#tabs button').forEach(b=>b.addEventListener('click',gripTxt));
 document.querySelectorAll('.ui').forEach(el=>el.addEventListener('beforexrselect',e=>e.preventDefault()));
 $('btn3D').onclick=()=>{mode='3d';cam.auto=false;cam.yaw=0;cam.pitch=0.3;cam.dist=innerWidth<700?2.25:1.3;cam.target=[0,innerWidth<700?0.24:0.2,0];enterHUD('3D')};
 $('btnAR').onclick=startAR;
