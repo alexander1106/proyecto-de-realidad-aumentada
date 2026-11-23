@@ -1,0 +1,1243 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#070b14">
+<title>AR SQL Lab · Laboratorio de bases de datos en realidad aumentada</title>
+<style>
+:root{--bg:#070b14;--panel:rgba(12,18,32,.88);--panel2:rgba(20,28,46,.92);--line:rgba(148,163,184,.16);--txt:#e2e8f0;--mut:#94a3b8;--acc:#22d3ee;--acc2:#a78bfa;--ok:#34d399;--bad:#f87171;--gold:#fbbf24}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,"Segoe UI",Roboto,Ubuntu,sans-serif;overflow:hidden}
+canvas#gl{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;z-index:1}
+#cam{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;background:#000}
+body.cammode{background:#000}
+#calib{position:fixed;left:50%;bottom:50%;transform:translate(-50%,50%);width:64px;height:64px;border:2px solid rgba(34,211,238,.9);border-radius:50%;box-shadow:0 0 24px rgba(34,211,238,.6)}
+#overlay{position:fixed;inset:0;pointer-events:none;z-index:2}
+.ui{pointer-events:auto}
+.hidden{display:none!important}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+code,.mono,textarea{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+
+/* ---------- Pantalla de inicio ---------- */
+#start{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;
+  background:radial-gradient(1200px 600px at 50% 120%,rgba(34,211,238,.18),transparent 60%),linear-gradient(180deg,rgba(7,11,20,.55),rgba(7,11,20,.92))}
+.card{max-width:440px;width:100%;text-align:center}
+.logo{width:76px;height:76px;margin:0 auto 18px;border-radius:22px;display:grid;place-items:center;
+  background:linear-gradient(135deg,#0e7490,#6d28d9);box-shadow:0 10px 40px rgba(34,211,238,.35)}
+.logo svg{width:44px;height:44px}
+h1{font-size:34px;margin:0 0 6px;letter-spacing:-.5px}
+h1 span{background:linear-gradient(90deg,var(--acc),var(--acc2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{color:var(--mut);margin:0 0 26px;line-height:1.45}
+.btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:15px 18px;border-radius:14px;font-weight:650;font-size:16px;margin-top:10px;transition:transform .12s,opacity .2s}
+.btn:active{transform:scale(.98)}
+.btn.primary{background:linear-gradient(90deg,#06b6d4,#8b5cf6);color:#fff;box-shadow:0 8px 30px rgba(139,92,246,.35)}
+.btn.ghost{background:rgba(148,163,184,.1);border:1px solid var(--line)}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.note{font-size:13px;color:var(--mut);margin-top:16px;min-height:18px;line-height:1.4}
+.feat{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:0 0 22px}
+.feat span{font-size:12px;padding:5px 10px;border-radius:999px;background:rgba(148,163,184,.1);border:1px solid var(--line);color:#cbd5e1}
+
+/* ---------- HUD ---------- */
+#topbar{position:fixed;top:0;left:0;right:0;display:flex;align-items:center;gap:10px;padding:12px 14px;
+  background:linear-gradient(180deg,rgba(7,11,20,.85),rgba(7,11,20,0))}
+#topbar .brand{font-weight:750;font-size:16px;display:flex;align-items:center;gap:8px}
+#topbar .brand i{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,#0e7490,#6d28d9);display:inline-grid;place-items:center}
+#topbar .brand i svg{width:16px;height:16px}
+.chip{font-size:11px;font-weight:700;letter-spacing:.6px;padding:4px 8px;border-radius:999px;background:rgba(34,211,238,.15);color:var(--acc);border:1px solid rgba(34,211,238,.35)}
+#topbar .sp{flex:1}
+.tbtn{padding:8px 12px;border-radius:10px;background:rgba(148,163,184,.12);border:1px solid var(--line);font-size:13px;font-weight:600}
+@media (max-width:520px){body.cammode #topbar .bt{display:none}#topbar{gap:6px}.tbtn{padding:7px 9px;font-size:12px}}
+#hint{position:fixed;top:64px;left:50%;transform:translateX(-50%);padding:10px 16px;border-radius:999px;background:var(--panel);border:1px solid var(--line);font-size:14px;white-space:nowrap;backdrop-filter:blur(10px)}
+
+/* Narrador de pasos */
+#narr{position:fixed;top:60px;left:12px;right:12px;padding:12px 14px;border-radius:16px;background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(12px)}
+#steps{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin-bottom:8px}
+#steps::-webkit-scrollbar{display:none}
+.st{flex:none;font-size:11px;font-weight:750;letter-spacing:.4px;padding:5px 9px;border-radius:8px;background:rgba(148,163,184,.1);color:var(--mut);border:1px solid transparent}
+.st.done{color:#cbd5e1}
+.st.on{background:rgba(34,211,238,.18);color:var(--acc);border-color:rgba(34,211,238,.5)}
+#narrText{font-size:14px;line-height:1.45}
+#narrText b{color:var(--acc)}
+#narrCtl{display:flex;gap:6px;margin-top:8px}
+#narrCtl button{padding:6px 10px;border-radius:8px;background:rgba(148,163,184,.12);font-size:12px;font-weight:650;white-space:nowrap}
+@media (max-width:899px){
+  #narr{top:54px;left:8px;right:8px;padding:9px 10px;border-radius:14px}
+  #narrText{font-size:12.5px;line-height:1.35}
+  #steps{margin-bottom:6px}.st{font-size:10px;padding:4px 7px}
+  #narrCtl{margin-top:6px}#narrCtl button{padding:5px 8px;font-size:11px}
+  #sheet{max-height:36vh;padding:12px}
+  #topbar{padding:9px 10px}
+  .ed pre,.ed textarea{font-size:13px}.ed textarea{min-height:70px}.kbk{max-height:78px}
+  .res{max-height:150px}
+}
+
+/* Panel lateral / inferior */
+#side{position:fixed;left:0;right:0;bottom:0;display:flex;flex-direction:column}
+#sheet{max-height:38vh;overflow:auto;margin:0 10px;padding:14px;border-radius:18px 18px 0 0;background:var(--panel);border:1px solid var(--line);border-bottom:0;backdrop-filter:blur(14px)}
+#tabs{display:flex;background:var(--panel2);border-top:1px solid var(--line);padding:6px 6px calc(6px + env(safe-area-inset-bottom))}
+#tabs button{flex:1;padding:9px 4px;border-radius:12px;font-size:13px;font-weight:650;color:var(--mut);display:flex;flex-direction:column;align-items:center;gap:3px}
+#tabs button svg{width:20px;height:20px}
+#tabs button.on{color:var(--acc);background:rgba(34,211,238,.1)}
+#grip{align-self:center;padding:8px 26px 6px;margin-bottom:-2px}
+#grip i{display:block;width:44px;height:5px;border-radius:3px;background:rgba(226,232,240,.55)}
+body.mini #sheet{display:none}
+@media (min-width:900px){
+  #grip{display:none}
+  body.mini #sheet{display:block}
+  #side{top:64px;right:16px;left:auto;bottom:16px;width:410px}
+  #tabs{order:-1;border-radius:16px 16px 0 0;border:1px solid var(--line);border-bottom:0;padding:6px}
+  #tabs button{flex-direction:row;justify-content:center;gap:7px}
+  #sheet{flex:1;max-height:none;margin:0;border-radius:0 0 16px 16px;border:1px solid var(--line)}
+  #narr{left:16px;right:442px;max-width:760px}
+  #hint{left:calc(50% - 213px)}
+}
+.h2{font-size:12px;font-weight:750;letter-spacing:.8px;color:var(--mut);text-transform:uppercase;margin:0 0 10px}
+.muted{color:var(--mut);font-size:14px;line-height:1.45}
+.tname{font-size:20px;font-weight:750;margin:0 0 2px}
+.tdesc{color:var(--mut);font-size:13px;margin-bottom:12px}
+.cols{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+.col{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;background:rgba(148,163,184,.07);font-size:14px}
+.col .ty{margin-left:auto;color:var(--mut);font-size:12px}
+.badge{font-size:10px;font-weight:800;padding:2px 6px;border-radius:6px}
+.badge.pk{background:rgba(251,191,36,.18);color:var(--gold)}
+.badge.fk{background:rgba(125,211,252,.16);color:#7dd3fc}
+.rel{font-size:13px;color:#cbd5e1;padding:6px 0;border-top:1px dashed var(--line)}
+.stats{display:flex;gap:8px;margin-bottom:12px}
+.stat{flex:1;padding:10px;border-radius:12px;background:rgba(148,163,184,.07);text-align:center}
+.stat b{display:block;font-size:20px}
+.stat span{font-size:11px;color:var(--mut)}
+.rowsel{padding:10px;border-radius:12px;background:rgba(34,211,238,.08);border:1px solid rgba(34,211,238,.3);font-size:13px;margin-bottom:12px}
+.ex{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:10px;scrollbar-width:thin}
+.ex button{flex:none;font-size:12px;font-weight:650;padding:7px 10px;border-radius:999px;background:rgba(167,139,250,.14);color:#ddd6fe;border:1px solid rgba(167,139,250,.3)}
+textarea{width:100%;min-height:86px;resize:vertical;padding:12px;border-radius:12px;background:#050814;color:#e0f2fe;border:1px solid var(--line);font-size:14px;line-height:1.45;outline:none}
+.ed{position:relative;border-radius:12px;background:#050814;border:1px solid var(--line)}
+.ed:focus-within{border-color:rgba(34,211,238,.6);box-shadow:0 0 0 3px rgba(34,211,238,.12)}
+.ed pre,.ed textarea{margin:0;padding:12px;font:14px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;overflow-wrap:break-word;letter-spacing:0;tab-size:2;border:0;border-radius:12px}
+.ed pre{position:absolute;inset:0;pointer-events:none;color:#e0f2fe;overflow:hidden}
+.ed textarea{display:block;position:relative;width:100%;min-height:96px;background:transparent;color:transparent;caret-color:#67e8f9;resize:vertical;outline:none}
+.ed textarea::placeholder{color:#475569}
+.hl .k{color:#c4b5fd;font-weight:700}.hl .f{color:#f9a8d4;font-weight:700}.hl .s{color:#fcd34d}.hl .n{color:#86efac}.hl .t{color:#5eead4;font-weight:700}.hl .c{color:#64748b}.hl .o{color:#93c5fd}
+.sug{display:flex;gap:6px;overflow-x:auto;margin-top:8px;min-height:31px;scrollbar-width:none;align-items:center}
+.sug::-webkit-scrollbar{display:none}
+.sug button{flex:none;padding:6px 10px;border-radius:8px;background:rgba(34,211,238,.14);border:1px solid rgba(34,211,238,.35);color:#a5f3fc;font:600 12.5px ui-monospace,SFMono-Regular,Menlo,monospace}
+.sug span{font-size:12px;color:var(--mut)}
+.kb{margin-top:6px;border-radius:12px;background:rgba(148,163,184,.06);border:1px solid var(--line);padding:6px}
+.kbt{display:flex;gap:3px;margin-bottom:6px;align-items:center}
+.kbt button{padding:5px 8px;border-radius:7px;font-size:11.5px;font-weight:700;color:var(--mut)}
+.kbt button.on{background:rgba(167,139,250,.2);color:#ddd6fe}
+.kbk{display:flex;flex-wrap:wrap;gap:5px;max-height:108px;overflow:auto}
+.kbk button{padding:8px 9px;border-radius:8px;background:#0f172a;border:1px solid var(--line);font:600 12px ui-monospace,SFMono-Regular,Menlo,monospace;color:#e2e8f0;min-width:34px}
+.kbk button:active{background:#1e293b;transform:scale(.96)}
+.kbk button[data-act]{background:rgba(167,139,250,.16);color:#ddd6fe;border-color:rgba(167,139,250,.3)}
+.btn2.warn{background:rgba(251,191,36,.12);border-color:rgba(251,191,36,.35);color:#fde68a}
+.st.err{background:rgba(248,113,113,.18);color:#fca5a5;border-color:rgba(248,113,113,.5)}
+#narr.bad{border-color:rgba(248,113,113,.5)}
+#narr.bad #nPrev,#narr.bad #nPlay,#narr.bad #nNext{display:none}
+#narr.bad #narrText b{color:#fca5a5}
+.row2{display:flex;gap:8px;margin-top:10px}
+.btn2{flex:1;padding:11px;border-radius:12px;font-weight:700;font-size:14px;background:rgba(148,163,184,.12);border:1px solid var(--line)}
+.btn2.run{background:linear-gradient(90deg,#06b6d4,#8b5cf6);color:#fff;border:0}
+.err{margin-top:10px;padding:10px 12px;border-radius:10px;background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.35);color:#fecaca;font-size:13px}
+.ok{margin-top:10px;padding:10px 12px;border-radius:10px;background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.35);color:#a7f3d0;font-size:13px}
+.res{margin-top:12px;overflow:auto;max-height:220px;border-radius:12px;border:1px solid var(--line)}
+.res table{border-collapse:collapse;width:100%;font-size:12.5px}
+.res th{position:sticky;top:0;background:#0f172a;color:var(--acc);text-align:left;padding:7px 9px;font-weight:700;white-space:nowrap}
+.res td{padding:6px 9px;border-top:1px solid var(--line);white-space:nowrap}
+.res caption{caption-side:top;text-align:left;padding:7px 9px;color:var(--mut);font-size:12px;background:rgba(148,163,184,.05)}
+.reto{padding:12px;border-radius:14px;background:linear-gradient(135deg,rgba(6,182,212,.12),rgba(139,92,246,.12));border:1px solid rgba(139,92,246,.3);margin-bottom:10px}
+.reto .n{font-size:11px;font-weight:800;color:var(--acc2);letter-spacing:.6px}
+.reto .q{font-size:15px;font-weight:600;margin-top:4px;line-height:1.4}
+.score{display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:13px;color:var(--mut)}
+.dots{display:flex;gap:4px}
+.dots i{width:18px;height:6px;border-radius:3px;background:rgba(148,163,184,.2)}
+.dots i.dok{background:var(--ok)} .dots i.dcur{background:var(--acc2)}
+#toast{position:fixed;left:50%;bottom:120px;transform:translateX(-50%);padding:10px 16px;border-radius:12px;background:#0f172a;border:1px solid var(--line);font-size:14px;opacity:0;transition:opacity .25s;pointer-events:none}
+#toast.on{opacity:1}
+@media (min-width:900px){#toast{bottom:32px;left:calc(50% - 213px)}}
+</style>
+</head>
+<body>
+<video id="cam" class="hidden" playsinline muted autoplay></video>
+<canvas id="gl"></canvas>
+
+<div id="overlay">
+  <!-- Inicio -->
+  <div id="start" class="ui">
+    <div class="card">
+      <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round"><ellipse cx="12" cy="5.5" rx="7" ry="2.8"/><path d="M5 5.5v6.5c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8V5.5"/><path d="M5 12v6.5c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8V12"/></svg></div>
+      <h1><span>AR SQL Lab</span></h1>
+      <p class="sub">Laboratorio de bases de datos relacionales en realidad aumentada. Coloca las tablas sobre tu mesa y mira cómo se ejecuta cada consulta SQL.</p>
+      <div class="feat"><span>Tablas 3D</span><span>Relaciones PK–FK</span><span>SELECT · JOIN · GROUP BY</span><span>Retos</span></div>
+      <button id="btnAR" class="btn primary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M12 7l5 3v5l-5 3-5-3v-5z"/></svg>Iniciar realidad aumentada</button>
+      <button id="btnCam" class="btn ghost"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Modo cámara (cualquier celular)</button>
+      <button id="btn3D" class="btn ghost"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg>Modo 3D (sin cámara)</button>
+      <div id="arNote" class="note">Comprobando compatibilidad con realidad aumentada…</div>
+    </div>
+  </div>
+
+  <!-- HUD -->
+  <div id="topbar" class="ui hidden">
+    <div class="brand"><i><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6"/></svg></i><span class="bt">AR SQL Lab</span></div>
+    <span id="modeChip" class="chip">3D</span>
+    <span class="sp"></span>
+    <button id="btnPlace" class="tbtn hidden">Reubicar</button>
+    <button id="btnScale" class="tbtn hidden">Tamaño</button>
+    <button id="btnExit" class="tbtn">Salir</button>
+  </div>
+  <div id="hint" class="ui hidden"></div>
+
+  <div id="narr" class="ui hidden">
+    <div id="steps"></div>
+    <div id="narrText"></div>
+    <div id="narrCtl"><button id="nPrev">◀ Anterior</button><button id="nPlay">⏸ Pausa</button><button id="nNext">Siguiente ▶</button><button id="nVoice">🔇 Voz</button><span style="flex:1"></span><button id="nClose">Limpiar</button></div>
+  </div>
+
+  <div id="side" class="ui hidden">
+    <button id="grip" title="Mostrar u ocultar el panel"><i></i></button>
+    <div id="sheet"></div>
+    <div id="tabs">
+      <button data-m="explorar" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>Explorar</button>
+      <button data-m="consultas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 9l-3 3 3 3M16 9l3 3-3 3M13 6l-2 12"/></svg>Consultas</button>
+      <button data-m="retos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/></svg>Retos</button>
+    </div>
+  </div>
+  <div id="toast"></div>
+</div>
+
+<script>
+'use strict';
+/* =====================================================================
+   1. BASE DE DATOS DE EJEMPLO (gestión académica universitaria)
+   ===================================================================== */
+const DB = {
+  estudiante:{title:'ESTUDIANTE',desc:'Datos de los estudiantes de la facultad.',color:[0.08,0.56,0.70],
+    cols:[{n:'id_estudiante',ty:'INT',k:'PK'},{n:'nombres',ty:'VARCHAR(60)'},{n:'carrera',ty:'VARCHAR(40)'},{n:'ciclo',ty:'INT'}],
+    w:[1.25,2.1,1.35,0.8],
+    rows:[[1,'Ana Torres','Sistemas',10],[2,'Luis Pérez','Sistemas',8],[3,'María Ruiz','Civil',6],[4,'Jorge Vela','Sistemas',9],
+          [5,'Rosa Chávez','Ambiental',7],[6,'Diego Ríos','Civil',10],[7,'Lucía Flores','Sistemas',5],[8,'Carlos Díaz','Ambiental',9]],
+    rel:['1 estudiante tiene N matrículas (MATRICULA.id_estudiante)']},
+  matricula:{title:'MATRICULA',desc:'Registra en qué cursos está matriculado cada estudiante y su nota.',color:[0.45,0.32,0.82],
+    cols:[{n:'id_matricula',ty:'INT',k:'PK'},{n:'id_estudiante',ty:'INT',k:'FK',ref:'estudiante'},{n:'id_curso',ty:'INT',k:'FK',ref:'curso'},{n:'nota',ty:'INT'}],
+    w:[1.2,1.25,1.0,0.75],
+    rows:[[1,1,1,18],[2,1,3,16],[3,2,1,14],[4,2,2,17],[5,3,5,12],[6,3,4,15],[7,4,1,19],[8,4,3,11],[9,5,6,16],[10,6,5,13],[11,7,2,15],[12,7,1,10],[13,8,6,17],[14,8,4,14]],
+    rel:['N matrículas pertenecen a 1 estudiante','N matrículas pertenecen a 1 curso']},
+  curso:{title:'CURSO',desc:'Cursos que ofrece la facultad y el docente a cargo.',color:[0.86,0.55,0.10],
+    cols:[{n:'id_curso',ty:'INT',k:'PK'},{n:'nombre',ty:'VARCHAR(60)'},{n:'creditos',ty:'INT'},{n:'id_docente',ty:'INT',k:'FK',ref:'docente'}],
+    w:[0.95,2.2,0.95,1.05],
+    rows:[[1,'Base de Datos',4,1],[2,'Programación Web',4,1],[3,'Redes',3,2],[4,'Estadística',3,3],[5,'Hidráulica',4,4],[6,'Ecología',2,3]],
+    rel:['1 curso tiene N matrículas','N cursos son dictados por 1 docente']},
+  docente:{title:'DOCENTE',desc:'Docentes de la facultad y su especialidad.',color:[0.82,0.25,0.42],
+    cols:[{n:'id_docente',ty:'INT',k:'PK'},{n:'nombres',ty:'VARCHAR(60)'},{n:'especialidad',ty:'VARCHAR(40)'}],
+    w:[1.05,1.9,2.0],
+    rows:[[1,'Rubén Soto','Bases de Datos'],[2,'Elena Paredes','Redes'],[3,'Víctor Ramos','Matemática'],[4,'Inés Cárdenas','Ing. Civil']],
+    rel:['1 docente dicta N cursos (CURSO.id_docente)']}
+};
+const ORDER = ['estudiante','matricula','curso','docente'];
+for(const k in DB)DB[k].ver=0;
+const ORIGINAL=JSON.stringify(Object.fromEntries(Object.keys(DB).map(k=>[k,DB[k].rows])));
+function resetData(){const o=JSON.parse(ORIGINAL);for(const k in o){DB[k].rows=o[k];DB[k].ver++}}
+const RELS = [['estudiante','matricula'],['matricula','curso'],['curso','docente']];
+
+/* =====================================================================
+   2. MOTOR SQL (analizador + ejecutor con traza paso a paso)
+   ===================================================================== */
+class SqlError extends Error{constructor(m,vis){super(m);this.vis=vis}}
+const KW = new Set(['SELECT','DISTINCT','FROM','WHERE','JOIN','INNER','LEFT','OUTER','ON','GROUP','BY','ORDER','HAVING','LIMIT','AS','AND','OR','NOT','ASC','DESC','LIKE','IN','IS','NULL','BETWEEN','INSERT','INTO','VALUES','UPDATE','SET','DELETE']);
+const AGG = new Set(['COUNT','SUM','AVG','MIN','MAX']);
+
+function lex(src){
+  const t=[];let i=0;
+  while(i<src.length){
+    const c=src[i];
+    if(/\s/.test(c)){i++;continue}
+    if(c==='-'&&src[i+1]==='-'){while(i<src.length&&src[i]!=='\n')i++;continue}
+    const s=i;
+    if(/[0-9]/.test(c)||(c==='.'&&/[0-9]/.test(src[i+1]||''))){while(i<src.length&&/[0-9.]/.test(src[i]))i++;t.push({ty:'num',v:parseFloat(src.slice(s,i)),s,e:i});continue}
+    if(c==="'"||c==='"'){const q=c;i++;let v='';while(i<src.length&&src[i]!==q){v+=src[i];i++}
+      if(i>=src.length)throw new SqlError('Falta cerrar la comilla del texto '+q+v);i++;t.push({ty:'str',v,s,e:i});continue}
+    if(/[A-Za-z_\u00C0-\u017F]/.test(c)){while(i<src.length&&/[A-Za-z0-9_\u00C0-\u017F]/.test(src[i]))i++;const v=src.slice(s,i);t.push({ty:'id',v,up:v.toUpperCase(),s,e:i});continue}
+    const two=src.slice(i,i+2);
+    if(['<>','!=','<=','>='].includes(two)){t.push({ty:'op',v:two,s,e:i+2});i+=2;continue}
+    if('(),.*=<>;+-/'.includes(c)){t.push({ty:'op',v:c,s,e:i+1});i++;continue}
+    throw new SqlError('Carácter no reconocido: "'+c+'"');
+  }
+  t.push({ty:'eof',s:src.length,e:src.length});return t;
+}
+
+function parse(src){
+  const T=lex(src);let p=0;
+  const pk=(o=0)=>T[p+o], nx=()=>T[p++];
+  const isK=(k,o=0)=>pk(o).ty==='id'&&pk(o).up===k;
+  const isO=(v,o=0)=>pk(o).ty==='op'&&pk(o).v===v;
+  const eatK=k=>{if(isK(k)){p++;return true}return false};
+  const eatO=v=>{if(isO(v)){p++;return true}return false};
+  const expK=k=>{if(!eatK(k))throw new SqlError(`Se esperaba ${k} cerca de "${near()}"`)};
+  const expO=v=>{if(!eatO(v))throw new SqlError(`Se esperaba "${v}" cerca de "${near()}"`)};
+  const near=()=>pk().ty==='eof'?'el final':src.slice(pk().s,pk().s+18);
+  const txt=(a,b)=>src.slice(a,b).trim();
+  const ident=()=>{const t=pk();if(t.ty!=='id'||KW.has(t.up))throw new SqlError(`Se esperaba un nombre cerca de "${near()}"`);p++;return t.v};
+
+  function expr(){return orE()}
+  function orE(){let l=andE();while(eatK('OR'))l={t:'bin',op:'OR',l,r:andE()};return l}
+  function andE(){let l=notE();while(eatK('AND'))l={t:'bin',op:'AND',l,r:notE()};return l}
+  function notE(){if(eatK('NOT'))return{t:'not',e:notE()};return cmpE()}
+  function cmpE(){
+    const l=addE();
+    for(const op of ['<>','!=','<=','>=','=','<','>'])if(eatO(op))return{t:'bin',op:op==='!='?'<>':op,l,r:addE()};
+    let neg=false;
+    if(isK('NOT')&&(isK('LIKE',1)||isK('IN',1)||isK('BETWEEN',1))){p++;neg=true}
+    if(eatK('LIKE'))return{t:'like',e:l,pat:addE(),neg};
+    if(eatK('IN')){expO('(');const list=[expr()];while(eatO(','))list.push(expr());expO(')');return{t:'in',e:l,list,neg}}
+    if(eatK('BETWEEN')){const lo=addE();expK('AND');return{t:'between',e:l,lo,hi:addE(),neg}}
+    if(eatK('IS')){const n=eatK('NOT');expK('NULL');return{t:'isnull',e:l,neg:n}}
+    return l;
+  }
+  function addE(){let l=mulE();for(;;){if(eatO('+'))l={t:'bin',op:'+',l,r:mulE()};else if(eatO('-'))l={t:'bin',op:'-',l,r:mulE()};else return l}}
+  function mulE(){let l=unE();for(;;){if(eatO('*'))l={t:'bin',op:'*',l,r:unE()};else if(eatO('/'))l={t:'bin',op:'/',l,r:unE()};else return l}}
+  function unE(){if(eatO('-'))return{t:'neg',e:unE()};return prim()}
+  function prim(){
+    const t=pk();
+    if(t.ty==='num'){p++;return{t:'num',v:t.v}}
+    if(t.ty==='str'){p++;return{t:'str',v:t.v}}
+    if(eatO('(')){const e=expr();expO(')');return e}
+    if(t.ty==='id'){
+      if(t.up==='NULL'){p++;return{t:'null'}}
+      if(AGG.has(t.up)&&isO('(',1)){p+=2;
+        if(eatO('*')){expO(')');return{t:'agg',fn:t.up,star:true}}
+        const d=eatK('DISTINCT');const a=expr();expO(')');return{t:'agg',fn:t.up,arg:a,distinct:d}}
+      if(KW.has(t.up))throw new SqlError(`Palabra clave inesperada "${t.v}"`);
+      p++;
+      if(eatO('.')){const c=pk();if(c.ty!=='id')throw new SqlError('Se esperaba el nombre de una columna después de "'+t.v+'."');p++;return{t:'col',tb:t.v.toLowerCase(),n:c.v.toLowerCase(),raw:t.v+'.'+c.v}}
+      return{t:'col',n:t.v.toLowerCase(),raw:t.v};
+    }
+    throw new SqlError(`Expresión no válida cerca de "${near()}"`);
+  }
+  function tableRef(){const name=ident();let alias=null;if(eatK('AS'))alias=ident();else if(pk().ty==='id'&&!KW.has(pk().up))alias=ident();return{name,alias}}
+
+  const end=()=>{eatO(';');if(pk().ty!=='eof')throw new SqlError(`No se entiende "${near()}".`)};
+  const whereOpt=o=>{if(eatK('WHERE')){const s=pk().s;o.where=expr();o.whereRaw=txt(s,T[p-1].e)}return o};
+  if(eatK('INSERT')){expK('INTO');const table=ident();let cols=null;
+    if(eatO('(')){cols=[];do cols.push(ident().toLowerCase());while(eatO(','));expO(')')}
+    expK('VALUES');const rows=[];do{expO('(');const r=[expr()];while(eatO(','))r.push(expr());expO(')');rows.push(r)}while(eatO(','));
+    end();return{kind:'insert',table,cols,rows}}
+  if(eatK('UPDATE')){const table=ident();expK('SET');const s0=pk().s;const sets=[];
+    do{const c=ident().toLowerCase();expO('=');sets.push({c,e:expr()})}while(eatO(','));
+    const o={kind:'update',table,sets,setRaw:txt(s0,T[p-1].e)};whereOpt(o);end();return o}
+  if(eatK('DELETE')){expK('FROM');const table=ident();const o={kind:'delete',table};whereOpt(o);end();return o}
+  expK('SELECT');
+  const q={kind:'select',distinct:eatK('DISTINCT'),items:[],joins:[],group:[],order:[]};
+  do{
+    const s=pk().s;
+    if(eatO('*')){q.items.push({star:true,raw:'*'});continue}
+    if(pk().ty==='id'&&isO('.',1)&&isO('*',2)){const tb=nx().v.toLowerCase();p+=2;q.items.push({star:true,tb,raw:tb+'.*'});continue}
+    const e=expr();const raw=txt(s,T[p-1].e);let alias=null;
+    if(eatK('AS'))alias=pk().ty==='str'?nx().v:ident();else if(pk().ty==='id'&&!KW.has(pk().up))alias=ident();
+    q.items.push({e,alias,raw});
+  }while(eatO(','));
+  expK('FROM');q.from=tableRef();
+  for(;;){
+    let type=null;
+    if(isK('JOIN')){p++;type='INNER'}
+    else if(isK('INNER')&&isK('JOIN',1)){p+=2;type='INNER'}
+    else if(isK('LEFT')){p++;eatK('OUTER');expK('JOIN');type='LEFT'}
+    if(!type)break;
+    const tr=tableRef();expK('ON');const s=pk().s;const on=expr();
+    q.joins.push({type,table:tr,on,raw:txt(s,T[p-1].e)});
+  }
+  if(eatK('WHERE')){const s=pk().s;q.where=expr();q.whereRaw=txt(s,T[p-1].e)}
+  if(eatK('GROUP')){expK('BY');const s=pk().s;do q.group.push(expr());while(eatO(','));q.groupRaw=txt(s,T[p-1].e)}
+  if(eatK('HAVING')){const s=pk().s;q.having=expr();q.havingRaw=txt(s,T[p-1].e)}
+  if(eatK('ORDER')){expK('BY');const s=pk().s;do{const e=expr();let desc=false;if(eatK('DESC'))desc=true;else eatK('ASC');q.order.push({e,desc})}while(eatO(','));q.orderRaw=txt(s,T[p-1].e)}
+  if(eatK('LIMIT')){const t=nx();if(t.ty!=='num')throw new SqlError('LIMIT necesita un número');q.limit=t.v}
+  eatO(';');
+  if(pk().ty!=='eof')throw new SqlError(`No se entiende "${near()}". Revisa el orden de las cláusulas.`);
+  return q;
+}
+
+const hasAgg=n=>!n?false:n.t==='agg'?true:['l','r','e','pat','lo','hi'].some(k=>hasAgg(n[k]))||(n.list||[]).some(hasAgg);
+function colRefs(n,out=[]){if(!n)return out;if(n.t==='col')out.push(n);['l','r','e','pat','lo','hi','arg'].forEach(k=>colRefs(n[k],out));(n.list||[]).forEach(x=>colRefs(x,out));return out}
+function cmp(a,b){if(a==null||b==null)return null;if(typeof a==='number'&&typeof b==='number')return a-b;
+  const na=Number(a),nb=Number(b);if(a!==''&&b!==''&&!isNaN(na)&&!isNaN(nb))return na-nb;
+  return String(a).localeCompare(String(b),'es',{sensitivity:'base'})}
+const fmt=v=>v==null?'NULL':typeof v==='number'&&!Number.isInteger(v)?v.toFixed(2):String(v);
+
+function ev(n,env){
+  switch(n.t){
+    case 'num':case 'str':return n.v;
+    case 'null':return null;
+    case 'col':return env.col(n);
+    case 'agg':return env.agg(n);
+    case 'neg':{const v=ev(n.e,env);return v==null?null:-v}
+    case 'not':{const v=ev(n.e,env);return v==null?null:!truthy(v)}
+    case 'bin':{
+      if(n.op==='AND'){const a=ev(n.l,env);if(a!=null&&!truthy(a))return false;const b=ev(n.r,env);if(b!=null&&!truthy(b))return false;return a==null||b==null?null:true}
+      if(n.op==='OR'){const a=ev(n.l,env);if(truthy(a))return true;const b=ev(n.r,env);if(truthy(b))return true;return a==null||b==null?null:false}
+      const a=ev(n.l,env),b=ev(n.r,env);
+      if(['+','-','*','/'].includes(n.op)){if(a==null||b==null)return null;const x=Number(a),y=Number(b);
+        return n.op==='+'?x+y:n.op==='-'?x-y:n.op==='*'?x*y:(y===0?null:x/y)}
+      const c=cmp(a,b);if(c==null)return null;
+      return n.op==='='?c===0:n.op==='<>'?c!==0:n.op==='<'?c<0:n.op==='>'?c>0:n.op==='<='?c<=0:c>=0}
+    case 'like':{const v=ev(n.e,env),pt=ev(n.pat,env);if(v==null||pt==null)return null;
+      const re=new RegExp('^'+String(pt).replace(/[.+?^${}()|[\]\\]/g,'\\$&').replace(/%/g,'.*').replace(/_/g,'.')+'$','i');
+      const r=re.test(String(v).normalize('NFD').replace(/[\u0300-\u036f]/g,''))||re.test(String(v));return n.neg?!r:r}
+    case 'in':{const v=ev(n.e,env);if(v==null)return null;const r=n.list.some(x=>cmp(v,ev(x,env))===0);return n.neg?!r:r}
+    case 'between':{const v=ev(n.e,env),lo=ev(n.lo,env),hi=ev(n.hi,env);if(v==null)return null;const r=cmp(v,lo)>=0&&cmp(v,hi)<=0;return n.neg?!r:r}
+    case 'isnull':{const r=ev(n.e,env)==null;return n.neg?!r:r}
+  }
+  throw new SqlError('Expresión no soportada');
+}
+const truthy=v=>v!=null&&v!==false&&v!==0;
+
+const evalNode=(n,e)=>ev(n,e);
+function execute(q){
+  const scope=[];const trace=[];
+  const add=tr=>{const key=tr.name.toLowerCase();const t=DB[key];
+    if(!t)throw new SqlError(`La tabla "${tr.name}" no existe. Tablas: ${ORDER.join(', ')}.`);
+    const alias=(tr.alias||tr.name).toLowerCase();
+    if(scope.some(s=>s.alias===alias))throw new SqlError(`El alias "${alias}" se repite; usa alias distintos.`);
+    scope.push({alias,key,t});return alias};
+  const resolve=ref=>{
+    if(ref.tb){const s=scope.find(s=>s.alias===ref.tb);if(!s)throw new SqlError(`No existe la tabla o alias "${ref.tb}".`);
+      const ci=s.t.cols.findIndex(c=>c.n===ref.n);if(ci<0)throw new SqlError(`La columna "${ref.n}" no existe en ${s.t.title}.`);return{alias:s.alias,ci,s}}
+    const hits=[];scope.forEach(s=>{const ci=s.t.cols.findIndex(c=>c.n===ref.n);if(ci>=0)hits.push({alias:s.alias,ci,s})});
+    if(!hits.length)throw new SqlError(`La columna "${ref.n}" no existe en las tablas de la consulta.`);
+    if(hits.length>1)throw new SqlError(`La columna "${ref.n}" es ambigua: está en ${hits.map(h=>h.s.t.title).join(' y ')}. Usa alias.columna.`);
+    return hits[0]};
+  const val=(ctx,ref)=>{const r=resolve(ref);const i=ctx[r.alias];return i==null?null:r.s.t.rows[i][r.ci]};
+  const rowEnv=ctx=>({col:r=>val(ctx,r),agg:()=>{throw new SqlError('Las funciones COUNT, SUM, AVG, MIN y MAX no se pueden usar en WHERE ni en ON. Usa HAVING.')}});
+  const groupEnv=g=>({col:r=>g.length?val(g[0],r):null,agg:n=>{
+    if(n.star)return g.length;
+    let vs=g.map(c=>ev(n.arg,rowEnv(c))).filter(v=>v!=null);
+    if(n.distinct)vs=[...new Map(vs.map(v=>[String(v).toLowerCase(),v])).values()];
+    if(n.fn==='COUNT')return vs.length;if(!vs.length)return null;
+    if(n.fn==='SUM')return vs.reduce((a,b)=>a+Number(b),0);
+    if(n.fn==='AVG')return vs.reduce((a,b)=>a+Number(b),0)/vs.length;
+    return vs.reduce((a,b)=>(n.fn==='MIN'?cmp(b,a)<0:cmp(b,a)>0)?b:a)}});
+
+  // FROM
+  const a0=add(q.from);
+  let ctxs=scope[0].t.rows.map((_,i)=>({[a0]:i}));
+  trace.push({step:'FROM',alias:a0,key:scope[0].key,n:ctxs.length});
+  // JOIN
+  const edges=[];
+  for(const j of q.joins){
+    const ra=add(j.table);const rs=scope[scope.length-1];
+    const refs=colRefs(j.on).map(resolve);
+    const la=(refs.find(r=>r.alias!==ra)||{alias:scope[0].alias}).alias;
+    const next=[],pairs=[];
+    for(const c of ctxs){let m=false;
+      rs.t.rows.forEach((_,i)=>{const nc={...c,[ra]:i};if(truthy(ev(j.on,rowEnv(nc)))){next.push(nc);m=true;pairs.push({la,li:c[la],ra,ri:i})}});
+      if(!m&&j.type==='LEFT')next.push({...c,[ra]:null});}
+    edges.push([la,ra]);
+    trace.push({step:'JOIN',type:j.type,alias:ra,key:rs.key,la,pairs,before:ctxs.length,n:next.length,raw:j.raw});
+    ctxs=next;
+  }
+  // WHERE
+  if(q.where){const before=ctxs.length;ctxs=ctxs.filter(c=>truthy(ev(q.where,rowEnv(c))));
+    trace.push({step:'WHERE',ctxs,edges:edges.slice(),before,n:ctxs.length,raw:q.whereRaw})}
+  // GROUP BY / agregados
+  const grouped=q.group.length>0||q.items.some(it=>it.e&&hasAgg(it.e))||hasAgg(q.having)||q.order.some(o=>hasAgg(o.e));
+  let units;
+  if(grouped){
+    const m=new Map();
+    for(const c of ctxs){const k=q.group.map(g=>String(ev(g,rowEnv(c))).toLowerCase()).join('\u0001');if(!m.has(k))m.set(k,[]);m.get(k).push(c)}
+    let groups=[...m.values()];if(!q.group.length&&!groups.length)groups=[[]];
+    trace.push({step:'GROUP BY',groups,implicit:!q.group.length,raw:q.groupRaw,n:groups.length});
+    if(q.having){const before=groups.length;groups=groups.filter(g=>truthy(ev(q.having,groupEnv(g))));
+      trace.push({step:'HAVING',groups,before,n:groups.length,raw:q.havingRaw})}
+    units=groups.map(g=>({env:groupEnv(g),src:g}));
+  }else units=ctxs.map(c=>({env:rowEnv(c),src:[c]}));
+  // SELECT
+  const columns=[],getters=[],selCols=[];
+  for(const it of q.items){
+    if(it.star){
+      if(grouped)throw new SqlError('No se puede usar * junto con GROUP BY o funciones de agregación.');
+      const ss=it.tb?scope.filter(s=>s.alias===it.tb):scope;if(it.tb&&!ss.length)throw new SqlError(`No existe la tabla o alias "${it.tb}".`);
+      for(const s of ss)s.t.cols.forEach((c,ci)=>{const dup=scope.filter(o=>o.t.cols.some(x=>x.n===c.n)).length>1;
+        columns.push(dup?s.alias+'.'+c.n:c.n);getters.push(u=>u.src[0][s.alias]==null?null:s.t.rows[u.src[0][s.alias]][ci]);selCols.push({alias:s.alias,ci})});
+    }else{
+      if(grouped&&!hasAgg(it.e)&&q.group.length){
+        for(const r of colRefs(it.e)){const rr=resolve(r);
+          if(!q.group.some(g=>colRefs(g).some(gr=>{const x=resolve(gr);return x.alias===rr.alias&&x.ci===rr.ci})))
+            throw new SqlError(`La columna "${r.raw}" debe estar en GROUP BY o dentro de una función de agregación.`)}}
+      columns.push(it.alias||(it.e.t==='col'?it.e.n:it.raw));getters.push(u=>ev(it.e,u.env));
+      colRefs(it.e).forEach(r=>{const rr=resolve(r);selCols.push({alias:rr.alias,ci:rr.ci})});
+    }
+  }
+  let out=units.map(u=>({vals:getters.map(g=>g(u)),u}));
+  trace.push({step:'SELECT',cols:selCols,names:columns,n:out.length});
+  if(q.distinct){const seen=new Set();out=out.filter(o=>{const k=JSON.stringify(o.vals.map(v=>String(v).toLowerCase()));if(seen.has(k))return false;seen.add(k);return true});
+    trace.push({step:'DISTINCT',n:out.length})}
+  if(q.order.length){
+    const lowerNames=columns.map(c=>c.toLowerCase());
+    const keyOf=(o,e)=>{
+      if(e.t==='num'&&Number.isInteger(e.v)&&e.v>=1&&e.v<=columns.length)return o.vals[e.v-1];
+      if(e.t==='col'){const k=(e.tb?e.tb+'.':'')+e.n;const i=lowerNames.indexOf(k);if(i>=0)return o.vals[i];if(!e.tb){const j=lowerNames.indexOf(e.n);if(j>=0&&!scope.some(s=>s.t.cols.some(c=>c.n===e.n)))return o.vals[j]}}
+      return ev(e,{col:r=>{if(!r.tb){const i=lowerNames.indexOf(r.n);if(i>=0)return o.vals[i]}return o.u.env.col(r)},agg:n=>o.u.env.agg(n)})};
+    const keyed=out.map(o=>({o,k:q.order.map(x=>keyOf(o,x.e))}));
+    keyed.sort((A,B)=>{for(let i=0;i<q.order.length;i++){const a=A.k[i],b=B.k[i];let c;
+      if(a==null&&b==null)c=0;else if(a==null)c=-1;else if(b==null)c=1;else c=cmp(a,b);
+      if(c)return q.order[i].desc?-c:c}return 0});
+    out=keyed.map(x=>x.o);trace.push({step:'ORDER BY',raw:q.orderRaw,n:out.length})}
+  if(q.limit!=null){out=out.slice(0,q.limit);trace.push({step:'LIMIT',n:out.length,limit:q.limit})}
+  trace.push({step:'RESULTADO',n:out.length,cols:columns.length});
+  return{columns,rows:out.map(o=>o.vals),srcs:out.map(o=>o.u.src),trace,scope:scope.map(s=>({alias:s.alias,key:s.key})),edges};
+}
+
+function sqlErr(m,vis){return new SqlError(m,vis)}
+function pkIdx(t){return t.cols.findIndex(c=>c.k==='PK')}
+function executeDML(q){
+  const key=q.table.toLowerCase(),t=DB[key];
+  if(!t)throw new SqlError(`La tabla "${q.table}" no existe. Tablas: ${ORDER.join(', ')}.`);
+  const before=t.rows.map(r=>r.slice()),pi=pkIdx(t);
+  const ci=n=>{const i=t.cols.findIndex(c=>c.n===n);if(i<0)throw new SqlError(`La columna "${n}" no existe en ${t.title}.`);return i};
+  const rowEnv=row=>({col:r=>{if(r.tb&&r.tb!==key)throw new SqlError(`Aquí solo puedes usar columnas de ${t.title}.`);return row?row[ci(r.n)]:(()=>{throw new SqlError('En VALUES no se pueden usar columnas, solo valores.')})()},
+    agg:()=>{throw new SqlError('No se permiten COUNT, SUM, AVG, MIN ni MAX en esta sentencia.')}});
+  const children=()=>ORDER.flatMap(k=>DB[k].cols.map((c,i)=>({k,i,c})).filter(x=>x.c.k==='FK'&&x.c.ref===key));
+  function check(row,selfIdx,rowsNow){
+    t.cols.forEach((c,i)=>{const v=row[i];
+      if(c.ty==='INT'&&v!=null&&!(typeof v==='number'&&Number.isInteger(v)))throw sqlErr(`Tipo de dato incorrecto: ${c.n} es INT (entero) y recibió "${fmt(v)}".`,{marks:[]});
+      if(c.ty.startsWith('VARCHAR')&&v!=null&&typeof v!=='string')throw sqlErr(`Tipo de dato incorrecto: ${c.n} es ${c.ty} (texto) y recibió ${fmt(v)}. Escribe el texto entre comillas simples.`,{marks:[]});
+      if(c.k==='PK'){if(v==null)throw sqlErr(`La clave primaria ${c.n} no puede ser NULL.`,{marks:[]});
+        const dup=rowsNow.findIndex((r,j)=>j!==selfIdx&&cmp(r[i],v)===0);
+        if(dup>=0)throw sqlErr(`Clave primaria duplicada: ya existe ${c.n} = ${v} en ${t.title}. Cada fila debe tener una clave primaria única.`,{marks:[{key,idx:[dup],col:'bad'}]})}
+      if(c.k==='FK'&&v!=null){const P=DB[c.ref],ppi=pkIdx(P);
+        if(!P.rows.some(r=>cmp(r[ppi],v)===0))throw sqlErr(`Violación de clave foránea: ${c.n} = ${v} no existe en ${P.title}.${P.cols[ppi].n}. Primero debe existir ese registro en ${P.title}.`,{marks:[{key:c.ref,idx:P.rows.map((_,j)=>j),col:'dim'}],focus:c.ref})}
+    })}
+  const refsOf=row=>t.cols.map((c,i)=>({c,i})).filter(x=>x.c.k==='FK'&&row[x.i]!=null).map(x=>{const P=DB[x.c.ref],ppi=pkIdx(P);return{key:x.c.ref,idx:P.rows.findIndex(r=>cmp(r[ppi],row[x.i])===0)}});
+  const trace=[];let affected=0;
+  try{
+  if(q.kind==='insert'){
+    const cols=q.cols?q.cols.map(ci):t.cols.map((_,i)=>i);
+    const work=t.rows.map(r=>r.slice()),newIdx=[],refs=[];
+    for(const vals of q.rows){
+      if(vals.length!==cols.length)throw new SqlError(`Se indicaron ${cols.length} columnas pero ${vals.length} valores.`);
+      const row=t.cols.map(()=>null);vals.forEach((e,j)=>{row[cols[j]]=evalNode(e,rowEnv(null))});
+      check(row,-1,work);work.push(row);newIdx.push(work.length-1);refsOf(row).forEach(r=>refs.push({...r,from:work.length-1}))}
+    trace.push({step:'VALIDACIÓN',key,before,refs,n:q.rows.length});
+    t.rows=work;affected=newIdx.length;
+    trace.push({step:'INSERT',key,before,after:work.map(r=>r.slice()),newIdx,refs,n:affected});
+  }else{
+    const matched=t.rows.map((r,i)=>i).filter(i=>!q.where||truthy(evalNode(q.where,rowEnv(t.rows[i]))));
+    trace.push({step:'WHERE',key,before,matched,raw:q.whereRaw||'',none:!q.where,kind:q.kind});
+    if(q.kind==='update'){
+      const setCols=q.sets.map(x=>ci(x.c));const work=t.rows.map(r=>r.slice());
+      for(const i of matched){const old=t.rows[i];const row=old.slice();q.sets.forEach((x,j)=>{row[setCols[j]]=evalNode(x.e,rowEnv(old))});
+        if(pi>=0&&cmp(row[pi],old[pi])!==0){for(const ch of children()){const idx=DB[ch.k].rows.map((r,j)=>j).filter(j=>cmp(DB[ch.k].rows[j][ch.i],old[pi])===0);
+          if(idx.length)throw sqlErr(`No se puede cambiar ${t.cols[pi].n} = ${old[pi]}: ${idx.length} fila(s) de ${DB[ch.k].title} la referencian (integridad referencial).`,{marks:[{key,idx:[i],col:'warn'},{key:ch.k,idx,col:'bad'}],beams:idx.map(j=>({a:ch.k,ai:j,b:key,bi:i}))})}}
+        work[i]=row}
+      matched.forEach(i=>check(work[i],i,work));
+      t.rows=work;affected=matched.length;
+      trace.push({step:'SET',key,before,after:work.map(r=>r.slice()),matched,setCols,raw:q.setRaw,n:affected});
+    }else{
+      if(pi>=0)for(const ch of children()){const vals=matched.map(i=>t.rows[i][pi]);
+        const idx=DB[ch.k].rows.map((r,j)=>j).filter(j=>vals.some(v=>cmp(DB[ch.k].rows[j][ch.i],v)===0));
+        if(idx.length){const beams=idx.map(j=>{const v=DB[ch.k].rows[j][ch.i];return{a:ch.k,ai:j,b:key,bi:t.rows.findIndex(r=>cmp(r[pi],v)===0)}});
+          throw sqlErr(`No se puede eliminar: ${idx.length} fila(s) de ${DB[ch.k].title} hacen referencia a ${matched.length===1?'esa fila':'esas filas'} de ${t.title} mediante ${ch.c.n}. Elimina o cambia primero esas filas (integridad referencial).`,{marks:[{key,idx:matched,col:'warn'},{key:ch.k,idx,col:'bad'}],beams})}}
+      const work=t.rows.filter((_,i)=>!matched.includes(i));t.rows=work;affected=matched.length;
+      trace.push({step:'DELETE',key,before,after:work.map(r=>r.slice()),matched,n:affected});
+    }
+  }
+  }catch(e){t.rows=before;throw e}
+  t.ver=(t.ver||0)+1;
+  trace.push({step:'RESULTADO',n:affected,dml:true});
+  const label={insert:'INSERT',update:'UPDATE',delete:'DELETE'}[q.kind];
+  return{dml:true,kind:q.kind,key,columns:['Operación','Tabla','Filas afectadas','Registros ahora'],rows:[[label,t.title,affected,t.rows.length]],trace,scope:[{alias:key,key}]};
+}
+
+function runSql(sql){const q=parse(sql);return q.kind==='select'?execute(q):executeDML(q)}
+
+/* =====================================================================
+   3. MATEMÁTICA 3D (matrices 4x4 en orden de columnas)
+   ===================================================================== */
+const M4={
+  id:()=>new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]),
+  mul(a,b){const o=new Float32Array(16);for(let c=0;c<4;c++)for(let r=0;r<4;r++){let s=0;for(let k=0;k<4;k++)s+=a[k*4+r]*b[c*4+k];o[c*4+r]=s}return o},
+  T:(x,y,z)=>new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,x,y,z,1]),
+  S:(x,y,z)=>new Float32Array([x,0,0,0,0,y,0,0,0,0,z,0,0,0,0,1]),
+  Ry(a){const c=Math.cos(a),s=Math.sin(a);return new Float32Array([c,0,-s,0,0,1,0,0,s,0,c,0,0,0,0,1])},
+  Rx(a){const c=Math.cos(a),s=Math.sin(a);return new Float32Array([1,0,0,0,0,c,s,0,0,-s,c,0,0,0,0,1])},
+  persp(fy,asp,n,f){const t=1/Math.tan(fy/2),nf=1/(n-f);return new Float32Array([t/asp,0,0,0,0,t,0,0,0,0,(f+n)*nf,-1,0,0,2*f*n*nf,0])},
+  lookAt(e,c,u){let z=norm(sub(e,c)),x=norm(cross(u,z)),y=cross(z,x);
+    return new Float32Array([x[0],y[0],z[0],0,x[1],y[1],z[1],0,x[2],y[2],z[2],0,-dot(x,e),-dot(y,e),-dot(z,e),1])},
+  inv(m){const a=m,o=new Float32Array(16);
+    const a00=a[0],a01=a[1],a02=a[2],a03=a[3],a10=a[4],a11=a[5],a12=a[6],a13=a[7],a20=a[8],a21=a[9],a22=a[10],a23=a[11],a30=a[12],a31=a[13],a32=a[14],a33=a[15];
+    const b00=a00*a11-a01*a10,b01=a00*a12-a02*a10,b02=a00*a13-a03*a10,b03=a01*a12-a02*a11,b04=a01*a13-a03*a11,b05=a02*a13-a03*a12,
+      b06=a20*a31-a21*a30,b07=a20*a32-a22*a30,b08=a20*a33-a23*a30,b09=a21*a32-a22*a31,b10=a21*a33-a23*a31,b11=a22*a33-a23*a32;
+    let d=b00*b11-b01*b10+b02*b09+b03*b08-b04*b07+b05*b06;if(!d)return M4.id();d=1/d;
+    o[0]=(a11*b11-a12*b10+a13*b09)*d;o[1]=(a02*b10-a01*b11-a03*b09)*d;o[2]=(a31*b05-a32*b04+a33*b03)*d;o[3]=(a22*b04-a21*b05-a23*b03)*d;
+    o[4]=(a12*b08-a10*b11-a13*b07)*d;o[5]=(a00*b11-a02*b08+a03*b07)*d;o[6]=(a32*b02-a30*b05-a33*b01)*d;o[7]=(a20*b05-a22*b02+a23*b01)*d;
+    o[8]=(a10*b10-a11*b08+a13*b06)*d;o[9]=(a01*b08-a00*b10-a03*b06)*d;o[10]=(a30*b04-a31*b02+a33*b00)*d;o[11]=(a21*b02-a20*b04-a23*b00)*d;
+    o[12]=(a11*b07-a10*b09-a12*b06)*d;o[13]=(a00*b09-a01*b07+a02*b06)*d;o[14]=(a31*b01-a30*b03-a32*b00)*d;o[15]=(a20*b03-a21*b01+a22*b00)*d;return o},
+  pt(m,p){const x=p[0],y=p[1],z=p[2],w=m[3]*x+m[7]*y+m[11]*z+m[15]||1;return[(m[0]*x+m[4]*y+m[8]*z+m[12])/w,(m[1]*x+m[5]*y+m[9]*z+m[13])/w,(m[2]*x+m[6]*y+m[10]*z+m[14])/w]},
+  dir(m,v){return[m[0]*v[0]+m[4]*v[1]+m[8]*v[2],m[1]*v[0]+m[5]*v[1]+m[9]*v[2],m[2]*v[0]+m[6]*v[1]+m[10]*v[2]]}
+};
+function sub(a,b){return[a[0]-b[0],a[1]-b[1],a[2]-b[2]]}
+function add3(a,b){return[a[0]+b[0],a[1]+b[1],a[2]+b[2]]}
+function scl(a,s){return[a[0]*s,a[1]*s,a[2]*s]}
+function dot(a,b){return a[0]*b[0]+a[1]*b[1]+a[2]*b[2]}
+function cross(a,b){return[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]]}
+function norm(a){const l=Math.hypot(a[0],a[1],a[2])||1;return[a[0]/l,a[1]/l,a[2]/l]}
+const lerp=(a,b,t)=>a+(b-a)*t;
+const lerp3=(a,b,t)=>[lerp(a[0],b[0],t),lerp(a[1],b[1],t),lerp(a[2],b[2],t)];
+function beamM(p0,p1,th){const d=sub(p1,p0),L=Math.hypot(d[0],d[1],d[2])||1e-6,x=scl(d,1/L);
+  let up=Math.abs(x[1])>.95?[1,0,0]:[0,1,0];const z=norm(cross(x,up)),y=cross(z,x),m=add3(p0,scl(d,.5));
+  return new Float32Array([x[0]*L,x[1]*L,x[2]*L,0,y[0]*th,y[1]*th,y[2]*th,0,z[0]*th,z[1]*th,z[2]*th,0,m[0],m[1],m[2],1])}
+
+/* =====================================================================
+   4. RENDERIZADOR WebGL
+   ===================================================================== */
+const canvas=document.getElementById('gl');
+let gl=canvas.getContext('webgl2',{antialias:true,alpha:true,xrCompatible:true});
+const GL2=!!gl;
+if(!gl)gl=canvas.getContext('webgl',{antialias:true,alpha:true,xrCompatible:true});
+if(!gl){document.getElementById('arNote').textContent='Tu navegador no soporta WebGL.'}
+const VS=`attribute vec3 aP;attribute vec3 aN;attribute vec2 aU;attribute float aF;
+uniform mat4 uM;uniform mat4 uVP;varying vec3 vN;varying vec2 vU;varying float vF;varying vec3 vW;
+void main(){vec4 w=uM*vec4(aP,1.0);vW=w.xyz;vN=mat3(uM)*aN;vU=aU;vF=aF;gl_Position=uVP*w;}`;
+const FS=`precision mediump float;varying vec3 vN;varying vec2 vU;varying float vF;varying vec3 vW;
+uniform vec3 uC;uniform float uE;uniform float uB;uniform float uA;uniform float uT;uniform sampler2D uS;
+void main(){vec3 n=normalize(vN);float d=max(dot(n,normalize(vec3(0.35,0.9,0.6))),0.0);
+vec3 base=uC;float lit=0.42+0.62*d;
+if(uT>0.5&&vF>0.5){vec4 t=texture2D(uS,vU);base=mix(base,t.rgb,t.a);lit=mix(lit,1.0,t.a*0.85);}
+vec3 c=base*lit+uC*uE;gl_FragColor=vec4(c*uB,uA);}`;
+let prog,loc={};
+function sh(type,src){const s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(s));return s}
+function initGL(){
+  prog=gl.createProgram();gl.attachShader(prog,sh(gl.VERTEX_SHADER,VS));gl.attachShader(prog,sh(gl.FRAGMENT_SHADER,FS));gl.linkProgram(prog);
+  if(!gl.getProgramParameter(prog,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(prog));
+  gl.useProgram(prog);
+  ['aP','aN','aU','aF'].forEach(a=>loc[a]=gl.getAttribLocation(prog,a));
+  ['uM','uVP','uC','uE','uB','uA','uT','uS'].forEach(u=>loc[u]=gl.getUniformLocation(prog,u));
+  gl.enable(gl.DEPTH_TEST);gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+}
+function mkMesh(P,N,U,F,I){const m={n:I.length,b:{}};
+  const buf=(arr,sz,name)=>{const b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(arr),gl.STATIC_DRAW);m.b[name]={b,sz}};
+  buf(P,3,'aP');buf(N,3,'aN');buf(U,2,'aU');buf(F,1,'aF');
+  m.ib=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,m.ib);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(I),gl.STATIC_DRAW);return m}
+function cubeMesh(){const P=[],N=[],U=[],F=[],I=[];
+  const faces=[[[0,0,1],[1,0,0],[0,1,0],1],[[1,0,0],[0,0,-1],[0,1,0],0],[[-1,0,0],[0,0,1],[0,1,0],0],[[0,0,-1],[-1,0,0],[0,1,0],0],[[0,1,0],[1,0,0],[0,0,-1],0],[[0,-1,0],[1,0,0],[0,0,1],0]];
+  faces.forEach(([n,u,v,f],fi)=>{[[-1,-1],[1,-1],[1,1],[-1,1]].forEach(([a,b])=>{P.push(n[0]*.5+u[0]*.5*a+v[0]*.5*b,n[1]*.5+u[1]*.5*a+v[1]*.5*b,n[2]*.5+u[2]*.5*a+v[2]*.5*b);N.push(...n);U.push((a+1)/2,(b+1)/2);F.push(f)});
+    const o=fi*4;I.push(o,o+1,o+2,o,o+2,o+3)});return mkMesh(P,N,U,F,I)}
+function ringMesh(r0,r1,seg){const P=[],N=[],U=[],F=[],I=[];
+  for(let i=0;i<=seg;i++){const a=i/seg*Math.PI*2,c=Math.cos(a),s=Math.sin(a);P.push(c*r0,0,s*r0,c*r1,0,s*r1);N.push(0,1,0,0,1,0);U.push(0,0,0,0);F.push(0,0);
+    if(i<seg){const o=i*2;I.push(o,o+1,o+3,o,o+3,o+2)}}return mkMesh(P,N,U,F,I)}
+let CUBE,RING,DISC,FLOOR;
+function bindMesh(m){for(const k in m.b){const{b,sz}=m.b[k];gl.bindBuffer(gl.ARRAY_BUFFER,b);gl.enableVertexAttribArray(loc[k]);gl.vertexAttribPointer(loc[k],sz,gl.FLOAT,false,0,0)}gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,m.ib)}
+let curMesh=null;
+function draw(m,model,c,o={}){if(curMesh!==m){bindMesh(m);curMesh=m}
+  gl.uniformMatrix4fv(loc.uM,false,model);gl.uniform3fv(loc.uC,c);gl.uniform1f(loc.uE,o.e||0);gl.uniform1f(loc.uB,o.b==null?1:o.b);gl.uniform1f(loc.uA,o.a==null?1:o.a);
+  if(o.tex){gl.uniform1f(loc.uT,1);gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,o.tex);gl.uniform1i(loc.uS,0)}else gl.uniform1f(loc.uT,0);
+  gl.drawElements(gl.TRIANGLES,m.n,gl.UNSIGNED_SHORT,0)}
+let aniso=null;
+function texFrom(cv,tex){tex=tex||gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,tex);gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true);gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,false);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,cv);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+  if(GL2){gl.generateMipmap(gl.TEXTURE_2D);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);if(aniso)gl.texParameterf(gl.TEXTURE_2D,aniso.TEXTURE_MAX_ANISOTROPY_EXT,8)}
+  else gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);return tex}
+
+/* ---------- Texturas de texto ---------- */
+const FONT='system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
+function fit(ctx,s,w){if(ctx.measureText(s).width<=w)return s;while(s.length>1&&ctx.measureText(s+'…').width>w)s=s.slice(0,-1);return s+'…'}
+function plateCanvas(kind,o){
+  const W=1024,H=kind==='row'?88:200;const cv=o.cv||document.createElement('canvas');cv.width=W;cv.height=H;const x=cv.getContext('2d');x.clearRect(0,0,W,H);
+  const wsum=o.w.reduce((a,b)=>a+b,0),pad=22;let cx=pad;const cw=o.w.map(v=>v/wsum*(W-pad*2));
+  if(kind==='header'){
+    x.fillStyle='#ffffff';x.font=`800 62px ${FONT}`;x.textBaseline='middle';x.fillText(fit(x,o.title,W-pad*2-160),pad,62);
+    x.font=`700 30px ${FONT}`;x.fillStyle='rgba(255,255,255,.75)';x.textAlign='right';x.fillText(o.sub||'',W-pad,64);x.textAlign='left';
+    x.fillStyle='rgba(0,0,0,.28)';x.fillRect(0,118,W,82);
+    o.cols.forEach((c,i)=>{const em=!o.emph||o.emph.has(i);
+      if(o.emph&&em){x.fillStyle='rgba(255,255,255,.22)';x.fillRect(cx-6,122,cw[i]-4,74)}
+      x.font=`700 30px ${FONT}`;let tx=cx;
+      if(c.k){x.fillStyle=c.k==='PK'?'#fbbf24':'#7dd3fc';x.font=`800 22px ${FONT}`;x.fillText(c.k,tx,159);tx+=x.measureText(c.k).width+8;x.font=`700 30px ${FONT}`}
+      x.fillStyle=em?'#ffffff':'rgba(255,255,255,.35)';x.fillText(fit(x,c.n,cw[i]-(tx-cx)-10),tx,159);cx+=cw[i]});
+  }else{
+    x.textBaseline='middle';
+    o.vals.forEach((v,i)=>{const c=o.cols[i]||{};const em=!o.emph||o.emph.has(i);
+      if(o.emph&&em){x.fillStyle='rgba(34,211,238,.20)';x.fillRect(cx-8,6,cw[i]-4,H-12)}
+      if(i){x.fillStyle='rgba(255,255,255,.07)';x.fillRect(cx-12,14,2,H-28)}
+      x.font=`${c.k==='PK'?800:600} 38px ${FONT}`;
+      x.fillStyle=!em?'rgba(226,232,240,.28)':c.k==='PK'?'#fcd34d':c.k==='FK'?'#93e1ff':'#f1f5f9';
+      x.fillText(fit(x,fmt(v),cw[i]-18),cx,H/2+2);cx+=cw[i]});
+  }
+  return cv;
+}
+
+/* =====================================================================
+   5. ESCENA: tablas 3D, relaciones, resultado
+   ===================================================================== */
+const ROW_H=0.02,GAP=0.0035,DEP=0.012,HEAD_H=0.046,BASE=0.014;
+const COL_ROW=[0.11,0.14,0.2],COL_MATCH=[0.07,0.6,0.36],COL_JOIN=[0.05,0.48,0.66],COL_DIM=[0.09,0.11,0.16];
+const GROUP_COLS=[[0.07,0.6,0.36],[0.85,0.52,0.08],[0.55,0.33,0.9],[0.9,0.27,0.45],[0.1,0.55,0.8],[0.6,0.7,0.12],[0.95,0.4,0.2],[0.3,0.75,0.75]];
+const scene={tables:{},beams:[],result:null,arcs:[],t:0,selected:null};
+function layoutTables(){
+  const xs=[-0.5,-0.17,0.17,0.5];
+  ORDER.forEach((k,ti)=>{const t=DB[k];const W=k==='docente'?0.24:0.25;const n=t.rows.length;
+    const ang=-xs[ti]*0.55;const G=M4.mul(M4.T(xs[ti],0,-Math.abs(xs[ti])*0.25),M4.Ry(ang));
+    const top=BASE+n*(ROW_H+GAP)+HEAD_H;
+    const T={key:k,t,W,G,n,top,ti,active:1,ver:t.ver,head:{cv:null,tex:null,e:0,eT:0,b:1,bT:1},rows:[]};
+    T.head.cv=plateCanvas('header',{title:t.title,sub:n+' filas',cols:t.cols,w:t.w});T.head.tex=texFrom(T.head.cv);
+    for(let i=0;i<n;i++){const cv=plateCanvas('row',{vals:t.rows[i],cols:t.cols,w:t.w});
+      T.rows.push({i,vals:t.rows[i],cv,tex:texFrom(cv),c:COL_ROW.slice(),cT:COL_ROW.slice(),z:0,zT:0,b:1,bT:1,build:0,y:BASE+(n-1-i)*(ROW_H+GAP)+ROW_H/2})}
+    scene.tables[k]=T;});
+  RELS.forEach(([a,b])=>scene.arcs.push({a,b}));
+}
+function rowWorld(T,i,side){const r=T.rows[i];return M4.pt(T.G,[side*T.W/2,r.y,DEP/2+r.z])}
+function headTop(T){return M4.pt(T.G,[0,T.top+0.004,0])}
+function bez(p0,c,p1,t){const u=1-t;return[u*u*p0[0]+2*u*t*c[0]+t*t*p1[0],u*u*p0[1]+2*u*t*c[1]+t*t*p1[1],u*u*p0[2]+2*u*t*c[2]+t*t*p1[2]]}
+
+/* ---------- Estado visual por paso ---------- */
+function resetVisual(){
+  clearTimeout(resetVisual.kt);
+  for(const k of ORDER){const T=scene.tables[k];if(T.ver!==T.t.ver)setRows(k,T.t.rows,T.t.ver);T.head.eT=0;T.head.bT=1;
+    T.rows.forEach(r=>{r.cT=COL_ROW.slice();r.zT=0;r.bT=1});setEmph(T,null)}
+  scene.beams=[];scene.result=null;
+}
+function setEmph(T,set){const key=set?[...set].sort().join(','):'';if(T.emphKey===key)return;T.emphKey=key;
+  plateCanvas('header',{cv:T.head.cv,title:T.t.title,sub:T.n+' filas',cols:T.t.cols,w:T.t.w,emph:set});texFrom(T.head.cv,T.head.tex);
+  T.rows.forEach(r=>{plateCanvas('row',{cv:r.cv,vals:r.vals,cols:T.t.cols,w:T.t.w,emph:set});texFrom(r.cv,r.tex)})}
+// Reconstruye las filas visibles de una tabla con otros datos (para animar INSERT/UPDATE/DELETE)
+function setRows(key,data,ver,fresh){const T=scene.tables[key];const n=data.length,old=T.rows;T.n=n;T.top=BASE+n*(ROW_H+GAP)+HEAD_H;T.ver=ver;T.emphKey=null;
+  T.rows=data.map((vals,i)=>{let r=old[i];if(!r||(fresh&&fresh.includes(i)))r={c:COL_ROW.slice(),z:0,b:1,build:fresh&&fresh.includes(i)?0:1,cv:r&&r.cv,tex:r&&r.tex};
+    r.i=i;r.vals=vals;r.kill=false;r.cT=COL_ROW.slice();r.zT=0;r.bT=1;r.y=BASE+(n-1-i)*(ROW_H+GAP)+ROW_H/2;
+    r.cv=plateCanvas('row',{cv:r.cv,vals,cols:T.t.cols,w:T.t.w});r.tex=texFrom(r.cv,r.tex);return r});
+  plateCanvas('header',{cv:T.head.cv,title:T.t.title,sub:n+' filas',cols:T.t.cols,w:T.t.w});texFrom(T.head.cv,T.head.tex)}
+const COL_BAD=[0.78,0.13,0.2],COL_WARN=[0.85,0.55,0.08],COL_NEW=[0.07,0.62,0.38];
+function applyDML(res,k){
+  resetVisual();const tr=res.trace[k],key=res.key,T=scene.tables[key];
+  for(const kk of ORDER){const X=scene.tables[kk];const on=kk===key;X.head.eT=on?0.4:0;X.head.bT=on?1:0.4;X.rows.forEach(r=>r.bT=on?1:0.4)}
+  const pop=(K,i,c)=>{const r=scene.tables[K].rows[i];if(!r)return;r.cT=c.slice();r.zT=0.014;r.bT=1};
+  const first=res.trace[0];
+  if(tr.step==='VALIDACIÓN'){setRows(key,tr.before,-1);tr.refs.forEach(f=>{const P=scene.tables[f.key];P.head.bT=1;P.head.eT=0.35;P.rows.forEach(r=>r.bT=0.6);pop(f.key,f.idx,COL_JOIN)})}
+  if(tr.step==='INSERT'){setRows(key,tr.after,-1,tr.newIdx);tr.newIdx.forEach(i=>pop(key,i,COL_NEW));
+    tr.refs.forEach(f=>{const P=scene.tables[f.key];P.head.bT=1;P.rows.forEach(r=>r.bT=0.6);pop(f.key,f.idx,COL_JOIN)});
+    scene.beams=tr.refs.map(f=>({a:key,ai:f.from,b:f.key,bi:f.idx,born:scene.t,delay:0.5+Math.random()*0.3}))}
+  if(tr.step==='WHERE'){setRows(key,tr.before,-1);const c=tr.kind==='delete'?COL_BAD:COL_WARN;
+    T.rows.forEach(r=>{if(!tr.matched.includes(r.i)){r.bT=0.4;r.cT=COL_DIM.slice()}});tr.matched.forEach(i=>pop(key,i,c))}
+  if(tr.step==='SET'){setRows(key,tr.after,-1);tr.matched.forEach(i=>pop(key,i,COL_NEW));setEmph(T,new Set(tr.setCols))}
+  if(tr.step==='DELETE'){setRows(key,tr.before,-1);tr.matched.forEach(i=>{pop(key,i,COL_BAD);T.rows[i].kill=true});
+    resetVisual.kt=setTimeout(()=>{if(player.res===res&&player.i===k)setRows(key,tr.after,-1)},900)}
+  if(tr.step==='RESULTADO'){
+    if(first.step==='VALIDACIÓN'){const ins=res.trace[1];setRows(key,ins.after,-1);ins.newIdx.forEach(i=>pop(key,i,COL_NEW))}
+    else{const last=res.trace[1];setRows(key,last.after,-1);if(last.step==='SET')last.matched.forEach(i=>pop(key,i,COL_NEW))}}
+}
+function showErrorVis(vis){
+  resetVisual();for(const kk of ORDER){const X=scene.tables[kk];X.head.bT=0.45;X.rows.forEach(r=>{r.bT=0.4})}
+  const col={bad:COL_BAD,warn:COL_WARN};
+  (vis.marks||[]).forEach(m=>{const X=scene.tables[m.key];X.head.bT=1;X.head.eT=0.4;X.rows.forEach(r=>r.bT=0.7);
+    if(col[m.col])m.idx.forEach(i=>{const r=X.rows[i];if(r){r.cT=col[m.col].slice();r.zT=0.014;r.bT=1}})});
+  if(vis.focus){const X=scene.tables[vis.focus];X.head.bT=1;X.head.eT=0.5}
+  scene.beams=(vis.beams||[]).map(b=>({...b,born:scene.t,delay:Math.random()*0.3,bad:true}));
+}
+function applyStep(res,k){
+  if(res.dml)return applyDML(res,k);
+  resetVisual();
+  const al={};res.scope.forEach(s=>al[s.alias]=s.key);
+  const tables=new Set();let beams=[];let st=null;let groupsColor=null;let kept=null;
+  for(let s=0;s<=k;s++){
+    const tr=res.trace[s];
+    if(tr.step==='FROM'){tables.add(tr.key)}
+    if(tr.step==='JOIN'){tables.add(tr.key);beams=beams.concat(tr.pairs.map(p=>({a:al[p.la],ai:p.li,b:al[p.ra],bi:p.ri})));st='join'}
+    if(tr.step==='WHERE'){kept=tr.ctxs;st='where';beams=[];const seen=new Set();
+      for(const c of tr.ctxs)for(const[la,ra]of tr.edges){if(c[la]==null||c[ra]==null)continue;const key=la+c[la]+'|'+ra+c[ra];if(seen.has(key))continue;seen.add(key);beams.push({a:al[la],ai:c[la],b:al[ra],bi:c[ra]})}}
+    if(tr.step==='GROUP BY'||tr.step==='HAVING'){groupsColor=tr.groups;st='group'}
+  }
+  // tablas involucradas vs. no involucradas
+  for(const key of ORDER){const T=scene.tables[key];const on=tables.has(key);T.head.eT=on?0.35:0;T.head.bT=on?1:0.32;T.rows.forEach(r=>{r.bT=on?1:0.28})}
+  const used={};const mark=(key,i,col)=>{if(i==null)return;const T=scene.tables[key];const r=T.rows[i];if(!used[key+i]){r.cT=col.slice();r.zT=0.012;used[key+i]=1}};
+  if(st==='join'){for(const b of beams){mark(b.a,b.ai,COL_JOIN);mark(b.b,b.bi,COL_JOIN)}
+    for(const key of tables)scene.tables[key].rows.forEach(r=>{if(!used[key+r.i])r.bT=0.55})}
+  if(st==='where'||st==='group'){
+    if(groupsColor){groupsColor.forEach((g,gi)=>g.forEach(c=>{for(const a in c)mark(al[a],c[a],GROUP_COLS[gi%GROUP_COLS.length])}))}
+    else if(kept){kept.forEach(c=>{for(const a in c)mark(al[a],c[a],COL_MATCH)})}
+    for(const key of tables)scene.tables[key].rows.forEach(r=>{if(!used[key+r.i]){r.bT=0.34;r.cT=COL_DIM.slice()}})}
+  if(st==null){for(const key of tables)scene.tables[key].rows.forEach(r=>{r.zT=0.006})}
+  // columnas elegidas por SELECT
+  const selIdx=res.trace.findIndex(t=>t.step==='SELECT');
+  if(selIdx>=0&&k>=selIdx){const per={};res.trace[selIdx].cols.forEach(c=>{const key=al[c.alias];(per[key]=per[key]||new Set()).add(c.ci)});
+    for(const key of tables)setEmph(scene.tables[key],per[key]||new Set())}
+  scene.beams=beams.map(b=>({...b,born:scene.t,delay:Math.random()*0.35}));
+  if(res.trace[k].step==='RESULTADO')buildResult(res);
+}
+function buildResult(res){
+  const ncol=res.columns.length,W=Math.min(0.62,Math.max(0.3,0.11*ncol)),maxR=10,shown=res.rows.slice(0,maxR);
+  const w=res.columns.map(()=>1),cols=res.columns.map(n=>({n}));
+  const extra=res.rows.length-shown.length;
+  const rows=shown.map((v,i)=>{const cv=plateCanvas('row',{vals:v,cols,w});return{cv,tex:texFrom(cv),i,build:0}});
+  if(extra>0){const cv=plateCanvas('row',{vals:['… y '+extra+' filas más'],cols:[{n:''}],w:[1]});rows.push({cv,tex:texFrom(cv),i:rows.length,build:0})}
+  const hc=plateCanvas('header',{title:'RESULTADO',sub:res.rows.length+' filas',cols,w});
+  const maxTop=Math.max(...ORDER.map(k=>scene.tables[k].top));const n=rows.length;
+  const front=M4.mul(M4.T(0,0.02,0.36),M4.Rx(-0.32));
+  scene.result={W,rows,head:{cv:hc,tex:texFrom(hc)},n,G:front,born:scene.t,
+    top:n*(ROW_H+GAP)+HEAD_H};
+}
+
+/* ---------- Dibujo de la escena ---------- */
+function drawScene(VP,root,dt,xr){
+  gl.useProgram(prog);curMesh=null;gl.uniformMatrix4fv(loc.uVP,false,VP);
+  const t=scene.t,k=Math.min(1,dt*7);
+  const R=m=>M4.mul(root,m);
+  if(!xr){ // piso del modo 3D
+    draw(FLOOR,R(M4.T(0,-0.002,-0.05)),[0.075,0.1,0.155]);
+    draw(DISC,R(M4.T(0,-0.001,-0.05)),[0.13,0.83,0.93],{e:0.7,a:0.6});
+  }
+  for(const key of ORDER){const T=scene.tables[key];const h=T.head;
+    h.e=lerp(h.e,h.eT+(scene.selected&&scene.selected.key===key?0.5:0),k);h.b=lerp(h.b,h.bT,k);
+    // base
+    draw(CUBE,R(M4.mul(T.G,M4.mul(M4.T(0,BASE/2-0.002,0),M4.S(T.W+0.02,BASE,0.05)))),[0.16,0.2,0.28],{b:h.b});
+    draw(CUBE,R(M4.mul(T.G,M4.mul(M4.T(0,BASE-0.001,DEP/2+0.008),M4.S(T.W+0.02,0.002,0.004)))),T.t.color,{e:0.9,b:h.b});
+    // filas
+    T.rows.forEach((r,ri)=>{r.build=r.kill?Math.max(0,r.build-dt*1.8):Math.min(1,r.build+dt*2.2*(t>0.25+ri*0.05?1:0));
+      for(let j=0;j<3;j++)r.c[j]=lerp(r.c[j],r.cT[j],k);r.z=lerp(r.z,r.zT,k);r.b=lerp(r.b,r.bT,k);
+      const s=easeOut(r.build);if(s<=0.001)return;
+      const sel=scene.selected&&scene.selected.key===key&&scene.selected.row===r.i;
+      draw(CUBE,R(M4.mul(T.G,M4.mul(M4.T(0,r.y,r.z+(sel?0.01:0)),M4.S(T.W,ROW_H*s,DEP)))),sel?[0.1,0.42,0.6]:r.c,{tex:r.tex,b:r.b,e:sel?0.25:0})});
+    // encabezado
+    const hs=easeOut(Math.min(1,Math.max(0,(t-0.1)*2.5)));
+    if(hs>0.001)draw(CUBE,R(M4.mul(T.G,M4.mul(M4.T(0,T.top-HEAD_H/2,0.002),M4.S(T.W,HEAD_H*hs,DEP*1.5)))),T.t.color,{tex:h.tex,e:h.e,b:h.b});
+  }
+  // arcos de relación PK–FK con partículas
+  const ap=easeOut(Math.min(1,Math.max(0,(t-0.9)*1.5)));
+  if(ap>0)for(const a of scene.arcs){const A=scene.tables[a.a],B=scene.tables[a.b];
+    const p0=headTop(A),p1=headTop(B),c=add3(scl(add3(p0,p1),.5),[0,0.07,0.02]);const seg=14;let prev=p0;const lim=Math.ceil(seg*ap);
+    for(let i=1;i<=lim;i++){const q=bez(p0,c,p1,i/seg);draw(CUBE,R(beamM(prev,q,0.0022)),[0.55,0.45,1],{e:0.8,a:0.9});prev=q}
+    if(ap>=1)for(let j=0;j<3;j++){const u=((t*0.35+j/3)%1);const q=bez(p0,c,p1,u);draw(CUBE,R(M4.mul(M4.T(q[0],q[1],q[2]),M4.S(.007,.007,.007))),[0.4,0.95,1],{e:1.2})}}
+  // líneas de JOIN entre filas
+  for(const b of scene.beams){const A=scene.tables[b.a],B=scene.tables[b.b];if(!A||!B||b.ai==null||b.bi==null)continue;
+    const left=A.ti<=B.ti;const p0=rowWorld(A,b.ai,left?1:-1),p1=rowWorld(B,b.bi,left?-1:1);
+    const far=Math.abs(A.ti-B.ti)>1;const c=add3(scl(add3(p0,p1),.5),[0,far?0.03:0,far?0.12:0.03]);
+    const g=Math.min(1,Math.max(0,(t-b.born-b.delay)*2.2));if(g<=0)continue;const seg=8;let prev=p0;
+    const bc=b.bad?[1,0.3,0.35]:[0.25,0.92,1];for(let i=1;i<=Math.ceil(seg*g);i++){const q=bez(p0,c,p1,i/seg);draw(CUBE,R(beamM(prev,q,0.003)),bc,{e:1.3});prev=q}
+    if(g>=1){draw(CUBE,R(M4.mul(M4.T(p0[0],p0[1],p0[2]),M4.S(.006,.006,.006))),[0.4,1,1],{e:1.4});draw(CUBE,R(M4.mul(M4.T(p1[0],p1[1],p1[2]),M4.S(.006,.006,.006))),[0.4,1,1],{e:1.4})}}
+  // tabla resultado
+  const res=scene.result;
+  if(res){const age=t-res.born;const hs=easeOut(Math.min(1,age*2));
+    draw(CUBE,R(M4.mul(res.G,M4.mul(M4.T(0,-0.006,0),M4.S(res.W+0.02,0.012,0.05)))),[0.16,0.2,0.28]);
+    draw(CUBE,R(M4.mul(res.G,M4.mul(M4.T(0,res.top-HEAD_H/2,0),M4.S(res.W,HEAD_H*hs,DEP*1.5)))),[0.05,0.62,0.55],{tex:res.head.tex,e:0.35});
+    res.rows.forEach((r,i)=>{r.build=Math.min(1,Math.max(0,(age-0.2-i*0.06)*3));const s=easeOut(r.build);if(s<=0.001)return;
+      const y=res.top-HEAD_H-GAP-(i)*(ROW_H+GAP)-ROW_H/2+0.004;
+      draw(CUBE,R(M4.mul(res.G,M4.mul(M4.T(0,y,0),M4.S(res.W,ROW_H*s,DEP)))),[0.06,0.3,0.3],{tex:r.tex,e:0.1})});}
+}
+const easeOut=x=>1-Math.pow(1-x,3);
+
+/* ---------- Selección (raycast) ---------- */
+function pick(o,d){
+  let best=null;
+  const test=(M,info)=>{const inv=M4.inv(M);const lo=M4.pt(inv,o),ld=M4.dir(inv,d);let t0=-1e9,t1=1e9;
+    for(let a=0;a<3;a++){if(Math.abs(ld[a])<1e-9){if(lo[a]<-.5||lo[a]>.5)return;continue}
+      let ta=(-.5-lo[a])/ld[a],tb=(.5-lo[a])/ld[a];if(ta>tb)[ta,tb]=[tb,ta];t0=Math.max(t0,ta);t1=Math.min(t1,tb);if(t0>t1)return}
+    if(t1<0)return;const tt=t0>0?t0:t1;if(!best||tt<best.t)best={t:tt,...info}};
+  for(const key of ORDER){const T=scene.tables[key];
+    test(M4.mul(T.G,M4.mul(M4.T(0,T.top-HEAD_H/2,0),M4.S(T.W,HEAD_H,DEP*1.5))),{key,row:null});
+    T.rows.forEach(r=>test(M4.mul(T.G,M4.mul(M4.T(0,r.y,r.z),M4.S(T.W,ROW_H,DEP))),{key,row:r.i}))}
+  return best;
+}
+
+/* =====================================================================
+   6. CÁMARA, MODO 3D Y REALIDAD AUMENTADA (WebXR)
+   ===================================================================== */
+const cam={yaw:0.0,pitch:0.32,dist:1.45,target:[0,0.2,0],auto:true};
+let mode='intro',last=performance.now();
+function resize(){const d=Math.min(window.devicePixelRatio||1,2);canvas.width=Math.round(innerWidth*d);canvas.height=Math.round(innerHeight*d)}
+addEventListener('resize',resize);
+function viewMats(){
+  const wide=innerWidth>=900&&mode!=='intro';
+  const e=[cam.target[0]+cam.dist*Math.sin(cam.yaw)*Math.cos(cam.pitch),cam.target[1]+cam.dist*Math.sin(cam.pitch),cam.target[2]+cam.dist*Math.cos(cam.yaw)*Math.cos(cam.pitch)];
+  const asp=canvas.width/canvas.height;let P=M4.persp(asp<1?1.05:0.75,asp,0.02,30);
+  if(wide){P=M4.mul(M4.T(-0.3,-0.12,0),P)} // deja espacio al panel lateral
+  else if(mode!=='intro'&&asp<1){P=document.body.classList.contains('mini')?M4.mul(M4.T(0,0.1,0),M4.mul(M4.S(1.45,1.45,1),P)):M4.mul(M4.T(0,0.3,0),P)}
+  const V=M4.lookAt(e,cam.target,[0,1,0]);return{VP:M4.mul(P,V),eye:e,P,V};
+}
+function loop(now){
+  if(mode==='xr')return;
+  const dt=Math.min(0.05,(now-last)/1000);last=now;scene.t+=dt;
+  if(cam.auto)cam.yaw+=dt*0.12;
+  resize();gl.viewport(0,0,canvas.width,canvas.height);
+  if(mode==='cam'){gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+    if(camS.gyro&&camS.G){if(camS.anchor){const m=camMats();drawScene(m.VP,m.root,dt,true)}}
+    else{const{VP}=viewMats();drawScene(VP,M4.id(),dt,true)}}
+  else{gl.clearColor(0.027,0.043,0.078,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  const{VP}=viewMats();drawScene(VP,M4.id(),dt,false);}
+  requestAnimationFrame(loop);
+}
+// Controles táctiles / ratón del modo 3D
+const ptrs=new Map();let downPos=null,pinch0=0,dist0=0;
+let scale0=1,ang0=0,yaw0=0;
+canvas.addEventListener('pointerdown',e=>{canvas.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,[e.clientX,e.clientY]);downPos=[e.clientX,e.clientY];
+  if(ptrs.size===2){const[a,b]=[...ptrs.values()];pinch0=Math.hypot(a[0]-b[0],a[1]-b[1]);dist0=cam.dist;scale0=camS.scale;ang0=Math.atan2(b[1]-a[1],b[0]-a[0]);yaw0=camS.yaw||0;downPos=null}});
+canvas.addEventListener('pointermove',e=>{if(!ptrs.has(e.pointerId))return;
+  if(mode==='cam'&&camS.gyro&&camS.pos){const p=ptrs.get(e.pointerId);ptrs.set(e.pointerId,[e.clientX,e.clientY]);
+    if(ptrs.size===1){const dx=e.clientX-p[0],dy=e.clientY-p[1];camS.yaw+=dx*0.009;const h=norm([camS.pos[0],0,camS.pos[2]]);const d=Math.hypot(camS.pos[0],camS.pos[2]);
+      const nd=Math.max(0.5,Math.min(3,d-dy*0.004));camS.pos=[h[0]*nd,camS.pos[1],h[2]*nd];camRebuild()}
+    else if(ptrs.size===2){const[a,b]=[...ptrs.values()];const d=Math.hypot(a[0]-b[0],a[1]-b[1]);camS.scale=Math.max(0.25,Math.min(2.2,scale0*d/pinch0));
+      camS.yaw=yaw0-(Math.atan2(b[1]-a[1],b[0]-a[0])-ang0);camRebuild()}
+    return}
+  if(!(mode==='3d'||(mode==='cam'&&!camS.gyro)))return;const p=ptrs.get(e.pointerId);
+  if(ptrs.size===1){cam.yaw-=(e.clientX-p[0])*0.006;cam.pitch=Math.max(-0.1,Math.min(1.25,cam.pitch+(e.clientY-p[1])*0.005));cam.auto=false}
+  ptrs.set(e.pointerId,[e.clientX,e.clientY]);
+  if(ptrs.size===2){const[a,b]=[...ptrs.values()];const d=Math.hypot(a[0]-b[0],a[1]-b[1]);cam.dist=Math.max(0.5,Math.min(3,dist0*pinch0/d))}});
+canvas.addEventListener('pointerup',e=>{ptrs.delete(e.pointerId);
+  if((mode==='3d'||mode==='cam')&&downPos&&Math.hypot(e.clientX-downPos[0],e.clientY-downPos[1])<7){
+    let VP,root=M4.id();if(mode==='cam'&&camS.gyro&&camS.G){const m=camMats();VP=m.VP;root=m.root}else VP=viewMats().VP;
+    const inv=M4.inv(VP);const x=e.clientX/innerWidth*2-1,y=1-e.clientY/innerHeight*2;
+    let a=M4.pt(inv,[x,y,-1]),b=M4.pt(inv,[x,y,1]);const ri=M4.inv(root);a=M4.pt(ri,a);b=M4.pt(ri,b);onPick(pick(a,norm(sub(b,a))))}downPos=null});
+canvas.addEventListener('wheel',e=>{if(!(mode==='3d'||mode==='cam'))return;e.preventDefault();cam.dist=Math.max(0.5,Math.min(3,cam.dist*(1+e.deltaY*0.001)))},{passive:false});
+
+
+// ---- Modo cámara (getUserMedia + giroscopio) ----
+const camS={stream:null,gyro:false,G:null,Gs:null,anchor:null,scale:0.7,needPlace:true};
+function onOrient(e){if(e.alpha==null||e.beta==null)return;camS.gyro=true;
+  const d=Math.PI/180,a=e.alpha*d,b=e.beta*d,g=e.gamma*d,cA=Math.cos(a),sA=Math.sin(a),cB=Math.cos(b),sB=Math.sin(b),cG=Math.cos(g),sG=Math.sin(g);
+  // R = Rz(alpha)·Rx(beta)·Ry(gamma): dispositivo -> tierra (Este, Norte, Arriba)
+  const R=[[cA*cG-sA*sB*sG,-cB*sA,cG*sA*sB+cA*sG],[cG*sA+cA*sB*sG,cA*cB,sA*sG-cA*cG*sB],[-cB*sG,sB,cB*cG]];
+  const th=((screen.orientation&&screen.orientation.angle)||window.orientation||0)*d,cT=Math.cos(th),sT=Math.sin(th);
+  const Rz=[[cT,-sT,0],[sT,cT,0],[0,0,1]];
+  const Rs=R.map(row=>[0,1,2].map(j=>row[0]*Rz[0][j]+row[1]*Rz[1][j]+row[2]*Rz[2][j]));
+  camS.G=[Rs[0],Rs[2],Rs[1].map(v=>-v)]; // tierra -> mundo WebGL (y hacia arriba)
+}
+function orthoN(G){const c0=norm([G[0][0],G[1][0],G[2][0]]);let c1=[G[0][1],G[1][1],G[2][1]];c1=norm(sub(c1,scl(c0,dot(c0,c1))));const c2=cross(c0,c1);
+  return[[c0[0],c1[0],c2[0]],[c0[1],c1[1],c2[1]],[c0[2],c1[2],c2[2]]]}
+function camView(){
+  if(!camS.Gs)camS.Gs=camS.G.map(r=>r.slice());
+  for(let i=0;i<3;i++)for(let j=0;j<3;j++)camS.Gs[i][j]=lerp(camS.Gs[i][j],camS.G[i][j],0.35);
+  const G=camS.Gs=orthoN(camS.Gs);
+  return new Float32Array([G[0][0],G[0][1],G[0][2],0,G[1][0],G[1][1],G[1][2],0,G[2][0],G[2][1],G[2][2],0,0,0,0,1]);
+}
+function camPlace(){if(!camS.Gs&&camS.G)camS.Gs=camS.G.map(r=>r.slice());if(!camS.Gs)return;
+  const f=[-camS.Gs[0][2],-camS.Gs[1][2],-camS.Gs[2][2]];let h=norm([f[0],0,f[2]]);if(!isFinite(h[0]))h=[0,0,-1];
+  const pos=add3(scl(h,1.35),[0,-0.42,0]);const yaw=Math.atan2(-h[0],-h[2]);
+  camS.pos=pos;camS.yaw=yaw;camRebuild();
+  scene.t=0;ORDER.forEach(k=>scene.tables[k].rows.forEach(r=>r.build=0));camS.needPlace=false}
+function camRebuild(){if(!camS.pos)return;camS.anchor=M4.mul(M4.mul(M4.T(camS.pos[0],camS.pos[1],camS.pos[2]),M4.Ry(camS.yaw)),M4.S(camS.scale,camS.scale,camS.scale))}
+function camRescale(){const st=[0.5,0.7,1,1.3];const i=st.findIndex(v=>v>camS.scale+0.01);camS.scale=i<0?st[0]:st[i];camRebuild();toast('Tamaño: '+Math.round(camS.scale*100)+'%')}
+let xrScale=1,anchorBase=null;
+function xrRescale(){const st=[0.5,0.75,1,1.4];const i=st.findIndex(v=>v>xrScale+0.01);xrScale=i<0?st[0]:st[i];if(anchorBase)anchor=M4.mul(anchorBase,M4.S(xrScale,xrScale,xrScale));toast('Tamaño: '+Math.round(xrScale*100)+'%')}
+async function startCam(){
+  if(!window.isSecureContext||!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){toast('La cámara necesita abrir la app desde un enlace https://');return}
+  try{if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){await DeviceOrientationEvent.requestPermission().catch(()=>{})}}catch(e){}
+  try{camS.stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false})}
+  catch(e){toast(e.name==='NotAllowedError'?'Permiso de cámara denegado. Actívalo en el navegador.':'No se pudo abrir la cámara: '+e.message);return}
+  const v=$('cam');v.srcObject=camS.stream;v.classList.remove('hidden');try{await v.play()}catch(e){}
+  document.body.classList.add('cammode');camS.gyro=false;camS.G=null;camS.Gs=null;camS.anchor=null;camS.needPlace=true;
+  addEventListener('deviceorientation',onOrient);
+  mode='cam';cam.auto=false;cam.yaw=0;cam.pitch=0.3;cam.dist=innerWidth<700?2.25:1.3;cam.target=[0,innerWidth<700?0.24:0.2,0];
+  enterHUD('CÁMARA');$('btnPlace').classList.remove('hidden');$('btnScale').classList.remove('hidden');
+  hint('Apunta la cámara hacia tu mesa…');setTimeout(()=>{if(mode!=='cam')return;
+    if(camS.gyro){camPlace();hint('');toast('Mueve el celular para mirar alrededor. Arrastra para girar o acercar; pellizca para cambiar el tamaño.')}
+    else{hint('');toast('Sin giroscopio: arrastra para girar la escena sobre la imagen de la cámara.')}},1200);
+}
+function stopCam(){removeEventListener('deviceorientation',onOrient);if(camS.stream)camS.stream.getTracks().forEach(t=>t.stop());camS.stream=null;
+  $('cam').classList.add('hidden');document.body.classList.remove('cammode');$('btnScale').classList.add('hidden')}
+function camMats(){const asp=canvas.width/canvas.height;const P=M4.persp(asp<1?1.05:0.75,asp,0.02,30);return{VP:M4.mul(P,camView()),root:camS.anchor||M4.id()}}
+
+// ---- WebXR ----
+let xrSession=null,xrRef=null,xrHit=null,xrLayer=null,reticle=null,anchor=null,xrLast=0;
+async function checkAR(){
+  const note=document.getElementById('arNote'),b=document.getElementById('btnAR');
+  let ok=false;try{ok=!!(navigator.xr&&await navigator.xr.isSessionSupported('immersive-ar'))}catch(e){}
+  if(ok){note.textContent='Realidad aumentada disponible en este dispositivo.'}
+  else{b.disabled=true;note.innerHTML=window.isSecureContext?'Este dispositivo o navegador no soporta WebXR AR (usa Chrome en Android con ARCore). Usa el <b>Modo cámara</b>: funciona en cualquier celular.':'La realidad aumentada necesita HTTPS. Abre la app desde su enlace seguro (https://).'}
+}
+async function startAR(){
+  try{
+    xrSession=await navigator.xr.requestSession('immersive-ar',{requiredFeatures:['hit-test'],optionalFeatures:['dom-overlay','local-floor'],domOverlay:{root:document.getElementById('overlay')}});
+  }catch(e){toast('No se pudo iniciar la realidad aumentada: '+e.message);return}
+  mode='xr';enterHUD('AR');
+  if(gl.makeXRCompatible)await gl.makeXRCompatible();
+  xrLayer=new XRWebGLLayer(xrSession,gl);xrSession.updateRenderState({baseLayer:xrLayer});
+  xrRef=await xrSession.requestReferenceSpace('local');
+  const viewer=await xrSession.requestReferenceSpace('viewer');xrHit=await xrSession.requestHitTestSource({space:viewer});
+  anchor=null;reticle=null;hint('Mueve el celular lentamente apuntando a una mesa…');
+  xrSession.addEventListener('select',onXRSelect);
+  xrSession.addEventListener('end',()=>{xrSession=null;mode='intro';anchor=null;showStart();last=performance.now();requestAnimationFrame(loop)});
+  xrLast=performance.now();xrSession.requestAnimationFrame(xrFrame);
+}
+let lastViewerPos=[0,0,0];
+function xrFrame(now,frame){
+  const s=frame.session;s.requestAnimationFrame(xrFrame);
+  const dt=Math.min(0.05,(now-xrLast)/1000);xrLast=now;
+  const pose=frame.getViewerPose(xrRef);
+  gl.bindFramebuffer(gl.FRAMEBUFFER,xrLayer.framebuffer);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  if(!pose)return;
+  const p=pose.transform.position;lastViewerPos=[p.x,p.y,p.z];
+  reticle=null;
+  if(xrHit){const hr=frame.getHitTestResults(xrHit);if(hr.length){const hp=hr[0].getPose(xrRef);if(hp)reticle=hp.transform.matrix}}
+  if(!anchor)hint(reticle?'Toca la pantalla para colocar la base de datos':'Mueve el celular lentamente apuntando a una mesa…');
+  if(anchor)scene.t+=dt;
+  for(const v of pose.views){const vp=xrLayer.getViewport(v);gl.viewport(vp.x,vp.y,vp.width,vp.height);
+    const VP=M4.mul(v.projectionMatrix,v.transform.inverse.matrix);
+    if(anchor)drawScene(VP,anchor,dt,true);
+    else if(reticle){gl.useProgram(prog);curMesh=null;gl.uniformMatrix4fv(loc.uVP,false,VP);
+      const pulse=1+0.06*Math.sin(now/180);draw(RING,M4.mul(reticle,M4.S(0.12*pulse,1,0.12*pulse)),[0.13,0.83,0.93],{e:0.8});
+      draw(RING,M4.mul(reticle,M4.S(0.05,1,0.05)),[0.65,0.55,1],{e:0.8})}}
+}
+function placeAt(m){const pos=[m[12],m[13],m[14]];const d=sub(lastViewerPos,pos);const yaw=Math.atan2(d[0],d[2]);
+  anchorBase=M4.mul(M4.T(pos[0],pos[1],pos[2]),M4.Ry(yaw));anchor=M4.mul(anchorBase,M4.S(xrScale,xrScale,xrScale));scene.t=0;$('btnScale').classList.remove('hidden');ORDER.forEach(k=>scene.tables[k].rows.forEach(r=>r.build=0));
+  hint('');document.getElementById('btnPlace').classList.remove('hidden');toast('Base de datos colocada. Rodéala para verla desde otros ángulos.')}
+function onXRSelect(e){
+  if(!anchor){if(reticle)placeAt(reticle);return}
+  if(placing){if(reticle){placing=false;placeAt(reticle)}return}
+  const pose=e.frame.getPose(e.inputSource.targetRaySpace,xrRef);if(!pose)return;
+  const m=pose.transform.matrix;const inv=M4.inv(anchor);
+  const o=M4.pt(inv,[m[12],m[13],m[14]]),d=norm(M4.dir(inv,[-m[8],-m[9],-m[10]]));onPick(pick(o,d));
+}
+let placing=false;
+
+/* =====================================================================
+   7. INTERFAZ: Explorar · Consultas · Retos
+   ===================================================================== */
+const $=id=>document.getElementById(id);
+const EXAMPLES=[
+  ['Todos los estudiantes','SELECT * FROM estudiante;'],
+  ['WHERE','SELECT nombres, carrera, ciclo\nFROM estudiante\nWHERE ciclo >= 9;'],
+  ['ORDER BY','SELECT nombre, creditos\nFROM curso\nORDER BY creditos DESC;'],
+  ['JOIN','SELECT e.nombres, m.nota\nFROM estudiante e\nJOIN matricula m ON e.id_estudiante = m.id_estudiante\nWHERE m.nota >= 16;'],
+  ['JOIN de 3 tablas','SELECT e.nombres, c.nombre, m.nota\nFROM estudiante e\nJOIN matricula m ON e.id_estudiante = m.id_estudiante\nJOIN curso c ON m.id_curso = c.id_curso\nWHERE e.carrera = \'Sistemas\';'],
+  ['GROUP BY','SELECT c.nombre, COUNT(*) AS matriculados, AVG(m.nota) AS promedio\nFROM matricula m\nJOIN curso c ON m.id_curso = c.id_curso\nGROUP BY c.nombre\nORDER BY promedio DESC;'],
+  ['Docentes y cursos','SELECT d.nombres AS docente, c.nombre AS curso\nFROM curso c\nJOIN docente d ON c.id_docente = d.id_docente;'],
+  ['INSERT','INSERT INTO matricula (id_matricula, id_estudiante, id_curso, nota)\nVALUES (15, 7, 3, 18);'],
+  ['UPDATE','UPDATE matricula\nSET nota = nota + 1\nWHERE id_curso = 3;'],
+  ['DELETE','DELETE FROM matricula\nWHERE nota < 12;'],
+  ['Error: clave foránea','INSERT INTO matricula\nVALUES (16, 3, 99, 15);'],
+  ['Error: borrar con referencias','DELETE FROM curso\nWHERE id_curso = 1;']
+];
+const RETOS=[
+  {q:'Muestra el nombre y la carrera de todos los estudiantes.',sol:'SELECT nombres, carrera FROM estudiante',hint:'Usa SELECT con dos columnas y FROM estudiante.'},
+  {q:'Lista los estudiantes de la carrera de Sistemas que estén en ciclo 8 o superior.',sol:"SELECT * FROM estudiante WHERE carrera = 'Sistemas' AND ciclo >= 8",hint:"Combina dos condiciones con AND. Los textos van entre comillas simples: 'Sistemas'."},
+  {q:'Muestra el nombre y los créditos de los cursos con más de 3 créditos, de mayor a menor.',sol:'SELECT nombre, creditos FROM curso WHERE creditos > 3 ORDER BY creditos DESC',hint:'Filtra con WHERE creditos > 3 y ordena con ORDER BY … DESC.',ordered:false},
+  {q:'Muestra el nombre de cada curso junto con el nombre del docente que lo dicta.',sol:'SELECT c.nombre, d.nombres FROM curso c JOIN docente d ON c.id_docente = d.id_docente',hint:'Une CURSO con DOCENTE usando la columna id_docente que tienen en común.'},
+  {q:'Muestra el nombre del estudiante, el curso y la nota de las matrículas con nota de 15 o más.',sol:'SELECT e.nombres, c.nombre, m.nota FROM estudiante e JOIN matricula m ON e.id_estudiante = m.id_estudiante JOIN curso c ON m.id_curso = c.id_curso WHERE m.nota >= 15',hint:'Necesitas dos JOIN: ESTUDIANTE con MATRICULA y MATRICULA con CURSO.'},
+  {q:'Calcula el promedio de notas de cada curso (nombre del curso y promedio).',sol:'SELECT c.nombre, AVG(m.nota) FROM matricula m JOIN curso c ON m.id_curso = c.id_curso GROUP BY c.nombre',hint:'Une MATRICULA con CURSO, agrupa con GROUP BY c.nombre y usa AVG(m.nota).'}
+];
+const ui={tab:'explorar',sql:EXAMPLES[3][1],res:null,err:null,reto:0,solved:new Set(),retoSql:'',retoMsg:null,kbTab:0,osk:!matchMedia('(pointer:coarse)').matches,voice:false};
+const STORE='arsql_v1';
+function loadState(){try{const o=JSON.parse(localStorage.getItem(STORE)||'{}');if(o.solved)ui.solved=new Set(o.solved);if(o.voice)ui.voice=true;if(typeof o.reto==='number')ui.reto=o.reto}catch(e){}}
+function saveState(){try{localStorage.setItem(STORE,JSON.stringify({solved:[...ui.solved],voice:ui.voice,reto:ui.reto}))}catch(e){}}
+
+/* ---------- Editor SQL: resaltado, autocompletado y teclado ---------- */
+const KWHL=new Set([...KW]);
+const ALLCOLS=[...new Set(ORDER.flatMap(k=>DB[k].cols.map(c=>c.n)))];
+const KWLIST=['SELECT','FROM','WHERE','JOIN','ON','AND','OR','NOT','GROUP BY','ORDER BY','HAVING','LIMIT','AS','DESC','ASC','DISTINCT','LIKE','IN','BETWEEN','IS NULL','COUNT(*)','AVG(','SUM(','MIN(','MAX(','LEFT JOIN','INSERT INTO','VALUES','UPDATE','SET','DELETE FROM'];
+const KB=[
+  ['Palabras',['SELECT','*','FROM','WHERE','JOIN','ON','AND','OR','GROUP BY','ORDER BY','DESC','LIMIT','AS','DISTINCT','LIKE','COUNT(*)','AVG(','SUM(','MAX(','MIN(','HAVING','LEFT JOIN','INSERT INTO','VALUES','UPDATE','SET','DELETE FROM']],
+  ['Tablas',[...ORDER,'estudiante e','matricula m','curso c','docente d']],
+  ['Columnas',ALLCOLS],
+  ['Símbolos',['=','<>','>','<','>=','<=','(',')',',','.',"'",';','%','+','-','1','2','3','4','5','6','7','8','9','0']]];
+function hl(src){return esc(src).replace(/(--[^\n]*)|(&#39;|')((?:(?!\2).)*?)(\2|$)|\b(\d+(?:\.\d+)?)\b|([A-Za-z_\u00C0-\u017F][A-Za-z0-9_\u00C0-\u017F]*)|(&lt;&gt;|&lt;=|&gt;=|&lt;|&gt;|[=!*+\/(),.;-])/g,(m,c,q1,body,q2,n,id,op)=>{
+  if(c)return`<span class="c">${c}</span>`;if(q1)return`<span class="s">${q1}${body}${q2}</span>`;if(n)return`<span class="n">${n}</span>`;
+  if(id){const u=id.toUpperCase();if(AGG.has(u))return`<span class="f">${id}</span>`;if(KWHL.has(u))return`<span class="k">${id}</span>`;if(DB[id.toLowerCase()])return`<span class="t">${id}</span>`;return id}
+  if(op)return`<span class="o">${op}</span>`;return m})}
+function aliasMap(text){const m={};const re=/\b(?:FROM|JOIN|UPDATE|INTO)\s+([A-Za-z_]+)(?:\s+(?:AS\s+)?([A-Za-z_]+))?/gi;let x;
+  while((x=re.exec(text))){const t=x[1].toLowerCase();if(!DB[t])continue;m[t]=t;if(x[2]&&!KWHL.has(x[2].toUpperCase()))m[x[2].toLowerCase()]=t}return m}
+function suggest(text,pos){
+  const pre=text.slice(0,pos);const am=aliasMap(text);
+  const dot=pre.match(/([A-Za-z_]+)\.([A-Za-z_]*)$/);
+  if(dot){const t=am[dot[1].toLowerCase()];return{part:dot[2],list:t?DB[t].cols.map(c=>c.n).filter(n=>n.startsWith(dot[2].toLowerCase())&&n!==dot[2]):[]}}
+  const part=(pre.match(/[A-Za-z_\u00C0-\u017F]*$/)||[''])[0],before=pre.slice(0,pre.length-part.length);
+  if((before.match(/'/g)||[]).length%2)return{part,list:[]};
+  const toks=before.toUpperCase().match(/[A-Z_]+|,/g)||[];const last=toks[toks.length-1]||'',prev=toks[toks.length-2]||'';
+  const tabs=[...new Set(Object.values(am))],aliases=Object.keys(am).filter(a=>a!==am[a]);
+  const colsCtx=aliases.length?aliases.flatMap(a=>DB[am[a]].cols.map(c=>a+'.'+c.n)):(tabs.length?[...new Set(tabs.flatMap(t=>DB[t].cols.map(c=>c.n)))]:ALLCOLS);
+  let list;
+  if(!toks.length)list=['SELECT','INSERT INTO','UPDATE','DELETE FROM'];
+  else if(['FROM','JOIN','INTO','UPDATE'].includes(last))list=ORDER.slice();
+  else if(last==='SELECT')list=['*',...colsCtx,'COUNT(*)','DISTINCT'];
+  else if(['WHERE','ON','AND','OR','BY','SET','HAVING',','].includes(last))list=colsCtx.slice();
+  else if(DB[last.toLowerCase()]||(['FROM','JOIN'].includes(prev)))list=['WHERE','JOIN','ORDER BY','GROUP BY','LIMIT',';'];
+  else if(ALLCOLS.includes(last.toLowerCase())||last.length===1)list=['=','>','<','>=','<>','LIKE','AND','FROM',','];
+  else list=KWLIST.concat(colsCtx,ORDER);
+  if(part){const p=part.toLowerCase();let f=list.filter(x=>x.toLowerCase().startsWith(p)&&x.toLowerCase()!==p);
+    if(!f.length)f=KWLIST.concat(colsCtx,ORDER).filter(x=>x.toLowerCase().startsWith(p)&&x.toLowerCase()!==p);list=f}
+  return{part,list:[...new Set(list)].slice(0,12)}}
+function editorHTML(id,val,ph){return`<div class="ed" id="${id}W"><pre class="hl" aria-hidden="true">${hl(val)}\n</pre><textarea id="${id}" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" placeholder="${ph||''}"${ui.osk?'':' inputmode="none"'}>${esc(val)}</textarea></div>
+  <div class="sug" id="${id}S"></div>
+  <div class="kb" id="${id}K"><div class="kbt">${KB.map((t,i)=>`<button data-kt="${i}" class="${ui.kbTab===i?'on':''}">${t[0]}</button>`).join('')}<span style="flex:1"></span><button data-act="osk" title="Usar el teclado del sistema">${ui.osk?'ABC ✓':'ABC'}</button></div>
+  <div class="kbk">${kbKeys()}</div></div>`}
+function kbKeys(){return KB[ui.kbTab][1].map(k=>`<button data-k="${esc(k)}">${esc(k)}</button>`).join('')+'<button data-act="nl">↵</button><button data-act="bs">⌫</button>'}
+function bindEditor(id,set,run){
+  const ta=$(id),pre=$(id+'W').querySelector('pre'),sg=$(id+'S'),kb=$(id+'K');
+  const refresh=()=>{pre.innerHTML=hl(ta.value)+'\n';pre.scrollTop=ta.scrollTop;set(ta.value);renderSug()};
+  const renderSug=()=>{const r=suggest(ta.value,ta.selectionStart);sg.innerHTML=r.list.length?r.list.map(x=>`<button data-s="${esc(x)}">${esc(x)}</button>`).join(''):'<span>Las sugerencias aparecen aquí mientras escribes.</span>';sg.dataset.part=r.part};
+  const put=(text,replace)=>{const a=ta.selectionStart,b=ta.selectionEnd;let pre0=ta.value.slice(0,a);const post=ta.value.slice(b);
+    if(replace)pre0=pre0.slice(0,pre0.length-replace);
+    const inStr=(pre0.match(/'/g)||[]).length%2===1;
+    const lead=(text==="'"&&inStr)||/^[.,);]/.test(text)||/[\s(.]$/.test(pre0)||!pre0?'':' ';
+    const trail=/[(.']$/.test(text)||text==="'"?'':' ';
+    const ins=lead+text+trail;ta.value=pre0+ins+post;const c=(pre0+ins).length;ta.setSelectionRange(c,c);refresh()};
+  ta.addEventListener('input',refresh);ta.addEventListener('scroll',()=>{pre.scrollTop=ta.scrollTop});
+  ta.addEventListener('click',renderSug);ta.addEventListener('keyup',e=>{if(!['Enter'].includes(e.key))renderSug()});
+  ta.addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();run()}});
+  [sg,kb].forEach(el=>el.addEventListener('pointerdown',e=>{if(e.target.closest('button'))e.preventDefault()}));
+  sg.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;put(b.dataset.s,(sg.dataset.part||'').length)});
+  kb.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+    if(b.dataset.kt!=null){ui.kbTab=+b.dataset.kt;kb.querySelectorAll('[data-kt]').forEach(x=>x.classList.toggle('on',x===b));kb.querySelector('.kbk').innerHTML=kbKeys();return}
+    const act=b.dataset.act;
+    if(act==='osk'){ui.osk=!ui.osk;if(ui.osk)ta.removeAttribute('inputmode');else ta.setAttribute('inputmode','none');b.textContent=ui.osk?'ABC ✓':'ABC';ta.blur();setTimeout(()=>ta.focus(),50);return}
+    if(act==='nl'){const a=ta.selectionStart;ta.value=ta.value.slice(0,a)+'\n'+ta.value.slice(ta.selectionEnd);ta.setSelectionRange(a+1,a+1);refresh();return}
+    if(act==='bs'){const a=ta.selectionStart,z=ta.selectionEnd;if(a!==z){ta.value=ta.value.slice(0,a)+ta.value.slice(z);ta.setSelectionRange(a,a)}else if(a>0){ta.value=ta.value.slice(0,a-1)+ta.value.slice(a);ta.setSelectionRange(a-1,a-1)}refresh();return}
+    if(b.dataset.k!=null)put(b.dataset.k,0)});
+  renderSug();
+}
+let player={res:null,i:0,timer:null,playing:false};
+
+function toast(m){const t=$('toast');t.textContent=m;t.classList.add('on');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.remove('on'),2600)}
+function hint(m){const h=$('hint');if(!m){h.classList.add('hidden');return}h.textContent=m;h.classList.remove('hidden')}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function enterHUD(label){$('start').classList.add('hidden');['topbar','side'].forEach(i=>$(i).classList.remove('hidden'));$('modeChip').textContent=label;renderSheet()}
+function showStart(){$('start').classList.remove('hidden');['topbar','side','narr','hint'].forEach(i=>$(i).classList.add('hidden'));$('btnPlace').classList.add('hidden');$('btnScale').classList.add('hidden');stopPlayer();resetVisual();scene.selected=null;cam.auto=true}
+
+function renderSheet(){
+  document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.m===ui.tab));
+  const sh=$('sheet');
+  if(ui.tab==='explorar'){
+    const s=scene.selected;
+    if(!s){sh.innerHTML=`<div class="h2">Explorar el modelo</div><p class="muted">Toca cualquier tabla para ver sus columnas, tipos de datos, claves y relaciones.</p>
+      <div class="cols">${ORDER.map(k=>`<button class="col" data-t="${k}" style="text-align:left"><span style="width:10px;height:10px;border-radius:3px;background:rgb(${DB[k].color.map(v=>v*255|0)})"></span><b>${DB[k].title}</b><span class="ty">${DB[k].rows.length} filas · ${DB[k].cols.length} columnas</span></button>`).join('')}</div>
+      <p class="muted" style="font-size:13px">Las líneas moradas sobre las tablas representan las relaciones entre clave primaria (PK) y clave foránea (FK).</p>`;
+      sh.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>onPick({key:b.dataset.t,row:null}));return}
+    const t=DB[s.key];const fks=t.cols.filter(c=>c.k==='FK').length;
+    sh.innerHTML=`<div style="display:flex;align-items:center;gap:8px"><span style="width:12px;height:12px;border-radius:4px;background:rgb(${t.color.map(v=>v*255|0)})"></span><div class="tname">${t.title}</div><span style="flex:1"></span><button class="tbtn" id="desel">Cerrar</button></div>
+      <div class="tdesc">${t.desc}</div>
+      <div class="stats"><div class="stat"><b>${t.rows.length}</b><span>registros</span></div><div class="stat"><b>${t.cols.length}</b><span>columnas</span></div><div class="stat"><b>${fks}</b><span>claves foráneas</span></div></div>
+      ${s.row!=null&&t.rows[s.row]?`<div class="rowsel"><b>Fila seleccionada</b><br>${t.cols.map((c,i)=>`${c.n} = <b>${esc(fmt(t.rows[s.row][i]))}</b>`).join(' · ')}</div>`:''}
+      <div class="h2">Columnas</div>
+      <div class="cols">${t.cols.map(c=>`<div class="col">${c.k?`<span class="badge ${c.k.toLowerCase()}">${c.k}</span>`:''}<span>${c.n}</span><span class="ty">${c.ty}${c.ref?' → '+DB[c.ref].title:''}</span></div>`).join('')}</div>
+      <div class="h2">Relaciones</div>${t.rel.map(r=>`<div class="rel">${r}</div>`).join('')}
+      <div class="row2"><button class="btn2 run" id="qThis">Consultar esta tabla</button></div>`;
+    $('desel').onclick=()=>{scene.selected=null;renderSheet()};
+    $('qThis').onclick=()=>{ui.sql='SELECT * FROM '+s.key+';';ui.tab='consultas';renderSheet();runQuery(ui.sql)};
+  }
+  if(ui.tab==='consultas'){
+    sh.innerHTML=`<div class="h2">Consultas SQL</div>
+      <div class="ex">${EXAMPLES.map((e,i)=>`<button data-i="${i}">${e[0]}</button>`).join('')}</div>
+      ${editorHTML('sql',ui.sql,'Escribe una consulta o usa el teclado SQL…')}
+      <div class="row2"><button class="btn2 run" id="run">▶ Ejecutar</button><button class="btn2" id="clr">Borrar</button>${ORDER.some(k=>DB[k].ver)?'<button class="btn2 warn" id="rst">Restablecer datos</button>':''}</div>
+      ${ui.err?`<div class="err">${esc(ui.err)}</div>`:''}${ui.res?resTable(ui.res):''}`;
+    sh.querySelectorAll('.ex button').forEach(b=>b.onclick=()=>{ui.sql=EXAMPLES[b.dataset.i][1];renderSheet();runQuery(ui.sql)});
+    bindEditor('sql',v=>ui.sql=v,()=>runQuery(ui.sql));
+    $('run').onclick=()=>runQuery(ui.sql);$('clr').onclick=()=>{ui.sql='';ui.err=null;ui.res=null;stopPlayer();resetVisual();renderSheet()};
+    if($('rst'))$('rst').onclick=()=>{resetData();ui.res=null;ui.err=null;stopPlayer();resetVisual();renderSheet();toast('Datos restablecidos al estado inicial')};
+  }
+  if(ui.tab==='retos'){
+    const r=RETOS[ui.reto];
+    sh.innerHTML=`<div class="score"><span>Puntaje: <b style="color:var(--ok)">${ui.solved.size*100}</b></span><span class="dots">${RETOS.map((_,i)=>`<i class="${ui.solved.has(i)?'dok':i===ui.reto?'dcur':''}"></i>`).join('')}</span></div>
+      <div class="reto"><div class="n">RETO ${ui.reto+1} DE ${RETOS.length}${ui.solved.has(ui.reto)?' · RESUELTO ✓':''}</div><div class="q">${r.q}</div></div>
+      ${editorHTML('rsql',ui.retoSql,'Escribe aquí tu consulta SQL…')}
+      <div class="row2"><button class="btn2 run" id="chk">Comprobar</button><button class="btn2" id="hnt">Pista</button><button class="btn2" id="nxt">Siguiente</button></div>
+      ${ui.retoMsg?`<div class="${ui.retoMsg.ok?'ok':'err'}">${ui.retoMsg.html}</div>`:''}${ui.retoMsg&&ui.retoMsg.res?resTable(ui.retoMsg.res):''}`;
+    bindEditor('rsql',v=>ui.retoSql=v,checkReto);
+    $('hnt').onclick=()=>{ui.retoMsg={ok:false,html:'💡 '+esc(r.hint)};renderSheet()};
+    $('nxt').onclick=()=>{ui.reto=(ui.reto+1)%RETOS.length;ui.retoSql='';ui.retoMsg=null;saveState();renderSheet()};
+    $('chk').onclick=checkReto;
+  }
+}
+function resTable(res){const n=res.rows.length,show=res.rows.slice(0,60);
+  return`<div class="res"><table><caption>${n} fila${n===1?'':'s'} · ${res.columns.length} columna${res.columns.length===1?'':'s'}</caption><thead><tr>${res.columns.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${show.map(r=>`<tr>${r.map(v=>`<td>${esc(fmt(v))}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`}
+function onPick(h){
+  if(!h){if(ui.tab==='explorar'&&scene.selected){scene.selected=null;renderSheet()}return}
+  scene.selected={key:h.key,row:h.row};
+  if(ui.tab!=='explorar'){ui.tab='explorar'}
+  renderSheet();if(navigator.vibrate)navigator.vibrate(15);
+}
+function runQuery(sql,keepSheet){
+  stopPlayer();
+  $('narr').classList.remove('bad');
+  let res;try{res=runSql(sql);ui.err=null}catch(e){ui.err=e instanceof SqlError?e.message:'Error: '+e.message;ui.res=null;
+    if(e.vis){showErrorVis(e.vis);$('steps').innerHTML='<button class="st err">ERROR DE INTEGRIDAD</button>';$('narrText').innerHTML='<b>Operación rechazada</b> — '+esc(e.message);$('narr').classList.add('bad');$('narr').classList.remove('hidden');speak('Operación rechazada. '+e.message);if(navigator.vibrate)navigator.vibrate([60,40,60])}
+    else{resetVisual();$('narr').classList.add('hidden')}
+    if(!keepSheet)renderSheet();return null}
+  ui.res=res;scene.selected=null;if(!keepSheet)renderSheet();
+  player={res,i:0,timer:null,playing:true};
+  $('steps').innerHTML=res.trace.map((t,i)=>`<button class="st" data-i="${i}">${t.step}</button>`).join('');
+  $('steps').querySelectorAll('.st').forEach(b=>b.onclick=()=>{pausePlayer();showStep(+b.dataset.i)});
+  $('narr').classList.remove('hidden');voiceBtn();showStep(0);schedule();return res;
+}
+function narr(res,k){const tr=res.trace[k];const T=key=>DB[key].title;
+  if(res.dml){const pl=n=>n===1?'':'s';
+    switch(tr.step){
+      case 'VALIDACIÓN':return`<b>Validación</b> — Antes de insertar en <b>${T(tr.key)}</b> se comprueba la integridad: la clave primaria no se repite, los tipos de datos son correctos y cada clave foránea existe en su tabla (en celeste).`;
+      case 'INSERT':return`<b>INSERT</b> — Se agrega${tr.n>1?'n':''} ${tr.n} fila${pl(tr.n)} nueva${pl(tr.n)} a <b>${T(tr.key)}</b> (en verde). Las líneas muestran a qué registros apuntan sus claves foráneas.`;
+      case 'WHERE':return tr.none?`<b>Sin WHERE</b> — La operación afecta a <b>todas</b> las filas de ${T(tr.key)} (${tr.matched.length}). ¡Cuidado al usar ${tr.kind==='delete'?'DELETE':'UPDATE'} sin WHERE!`:`<b>WHERE</b> — Se buscan las filas de <b>${T(tr.key)}</b> que cumplen <code>${esc(tr.raw)}</code>: ${tr.matched.length} fila${pl(tr.matched.length)} (en ${tr.kind==='delete'?'rojo':'naranja'}).`;
+      case 'SET':return`<b>SET</b> — Se aplica <code>${esc(tr.raw)}</code> a ${tr.n} fila${pl(tr.n)}. Los valores nuevos se resaltan en verde.`;
+      case 'DELETE':return`<b>DELETE</b> — Se eliminan ${tr.n} fila${pl(tr.n)} de <b>${T(tr.key)}</b>. Ninguna otra tabla las referenciaba, así que se mantiene la integridad.`;
+      case 'RESULTADO':return`<b>Listo</b> — ${tr.n} fila${pl(tr.n)} afectada${pl(tr.n)}. ${T(res.key)} ahora tiene ${DB[res.key].rows.length} registros. Usa «Restablecer datos» para volver al inicio.`;
+    }}const al=a=>{const s=res.scope.find(x=>x.alias===a);return s&&s.alias!==s.key?` (alias <b>${a}</b>)`:''};
+  switch(tr.step){
+    case 'FROM':return`<b>FROM</b> — Se toma la tabla <b>${T(tr.key)}</b>${al(tr.alias)}: ${tr.n} filas.`;
+    case 'JOIN':return`<b>${tr.type==='LEFT'?'LEFT JOIN':'JOIN'}</b> — Se une <b>${T(tr.key)}</b>${al(tr.alias)} con la condición <code>${esc(tr.raw)}</code>. Las líneas celestes unen las ${tr.pairs.length} parejas de filas que coinciden → ${tr.n} filas combinadas.`;
+    case 'WHERE':return`<b>WHERE</b> — Se evalúa <code>${esc(tr.raw)}</code> en cada fila combinada. Quedan <b>${tr.n}</b> de ${tr.before} (en verde); las demás se descartan.`;
+    case 'GROUP BY':return tr.implicit?`<b>Agregación</b> — Las funciones de agregación resumen todas las filas en un solo grupo.`:`<b>GROUP BY</b> — Se agrupan las filas por <code>${esc(tr.raw)}</code>: se forman <b>${tr.n}</b> grupos (cada color es un grupo).`;
+    case 'HAVING':return`<b>HAVING</b> — Se filtran los grupos con <code>${esc(tr.raw)}</code>: quedan ${tr.n} de ${tr.before}.`;
+    case 'SELECT':return`<b>SELECT</b> — Se eligen las columnas: <b>${tr.names.map(esc).join(', ')}</b>. Las columnas elegidas se resaltan en las tablas.`;
+    case 'DISTINCT':return`<b>DISTINCT</b> — Se eliminan las filas repetidas: quedan ${tr.n}.`;
+    case 'ORDER BY':return`<b>ORDER BY</b> — Se ordena el resultado por <code>${esc(tr.raw)}</code>.`;
+    case 'LIMIT':return`<b>LIMIT</b> — Se conservan solo las primeras ${tr.limit} filas.`;
+    case 'RESULTADO':return`<b>Resultado</b> — ${tr.n} fila${tr.n===1?'':'s'} × ${tr.cols} columna${tr.cols===1?'':'s'}. La tabla resultado aparece delante del laboratorio.`;
+  }return''}
+let vozES=null;
+function pickVoice(){if(!('speechSynthesis' in window))return;const vs=speechSynthesis.getVoices();vozES=vs.find(v=>/^es(-|_)(PE|419|MX|US)/i.test(v.lang))||vs.find(v=>/^es/i.test(v.lang))||null}
+if('speechSynthesis' in window){pickVoice();speechSynthesis.onvoiceschanged=pickVoice}
+function speak(text){if(!ui.voice||!('speechSynthesis' in window))return;
+  const plain=text.replace(/<[^>]+>/g,'').replace(/—/g,',').replace(/\be\./g,'e punto ').replace(/\bm\./g,'m punto ').replace(/\bc\./g,'c punto ').replace(/\bd\./g,'d punto ').replace(/_/g,' ').replace(/>=/g,' mayor o igual que ').replace(/<=/g,' menor o igual que ').replace(/<>/g,' distinto de ').replace(/>/g,' mayor que ').replace(/</g,' menor que ').replace(/\*/g,' asterisco ');
+  speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(plain);u.lang=vozES?vozES.lang:'es-ES';if(vozES)u.voice=vozES;u.rate=1.05;
+  u.onend=()=>{if(player.wait){player.wait=false;clearTimeout(player.fb);if(player.playing)player.timer=setTimeout(advance,450)}};
+  speechSynthesis.speak(u)}
+function showStep(k){const res=player.res;if(!res)return;player.i=k;applyStep(res,k);$('narrText').innerHTML=narr(res,k);speak(narr(res,k));
+  $('steps').querySelectorAll('.st').forEach((b,i)=>{b.classList.toggle('on',i===k);b.classList.toggle('done',i<k)});
+  const on=$('steps').children[k];if(on&&on.scrollIntoView)on.scrollIntoView({inline:'center',block:'nearest'});
+  $('nPlay').textContent=player.playing?'⏸ Pausa':(k>=res.trace.length-1?'↺ Repetir':'▶ Continuar')}
+function advance(){if(!player.res)return;if(player.i<player.res.trace.length-1){showStep(player.i+1);schedule()}else{player.playing=false;$('nPlay').textContent='↺ Repetir'}}
+function schedule(){clearTimeout(player.timer);clearTimeout(player.fb);if(!player.playing)return;
+  if(ui.voice&&'speechSynthesis' in window){player.wait=true;player.fb=setTimeout(()=>{if(player.wait){player.wait=false;if(player.playing)advance()}},12000);return}
+  player.timer=setTimeout(advance,2400)}
+function pausePlayer(){player.playing=false;player.wait=false;clearTimeout(player.timer);clearTimeout(player.fb);if('speechSynthesis' in window)speechSynthesis.cancel()}
+function stopPlayer(){pausePlayer();player.res=null;$('narr').classList.add('hidden')}
+$('nPrev').onclick=()=>{pausePlayer();showStep(Math.max(0,player.i-1))};
+$('nNext').onclick=()=>{pausePlayer();showStep(Math.min(player.res.trace.length-1,player.i+1))};
+$('nPlay').onclick=()=>{if(player.playing){pausePlayer();showStep(player.i)}else{if(player.i>=player.res.trace.length-1)player.i=0;player.playing=true;showStep(player.i);schedule()}};
+$('nClose').onclick=()=>{stopPlayer();resetVisual();$('narr').classList.remove('bad')};
+function voiceBtn(){$('nVoice').textContent=ui.voice?'🔊 Voz':'🔇 Voz';$('nVoice').style.color=ui.voice?'var(--acc)':''}
+$('nVoice').onclick=()=>{if(!('speechSynthesis' in window)){toast('Este navegador no tiene síntesis de voz');return}ui.voice=!ui.voice;saveState();voiceBtn();
+  if(ui.voice){speak($('narrText').innerHTML);if(player.playing)schedule()}else{speechSynthesis.cancel();if(player.playing){player.wait=false;schedule()}}};
+function canon(res,ordered){const rows=res.rows.map(r=>r.map(v=>typeof v==='number'?(Math.round(v*100)/100).toString():String(v).toLowerCase()).join('\u0001'));return ordered?rows:rows.slice().sort()}
+function checkReto(){
+  const r=RETOS[ui.reto];const sql=ui.retoSql.trim();if(!sql){ui.retoMsg={ok:false,html:'Escribe una consulta primero.'};renderSheet();return}
+  let mine;try{if(parse(sql).kind!=='select'){ui.retoMsg={ok:false,html:'En los retos se usan consultas SELECT. Prueba INSERT, UPDATE y DELETE en la pestaña Consultas.'};renderSheet();return}mine=runSql(sql)}catch(e){ui.retoMsg={ok:false,html:'Error: '+esc(e.message)};renderSheet();return}
+  const exp=runSql(r.sol);const ordered=/order\s+by/i.test(r.sol);
+  let ok=false,html='';
+  if(mine.columns.length!==exp.columns.length)html=`Tu consulta devuelve ${mine.columns.length} columna(s) y se esperaban ${exp.columns.length}. Revisa el SELECT.`;
+  else{const a=canon(mine,ordered),b=canon(exp,ordered);
+    if(a.join('\n')===b.join('\n')){ok=true;html='¡Correcto! +100 puntos. Mira la animación para repasar cómo se ejecutó.'}
+    else if(!ordered||canon(mine,false).join('\n')!==canon(exp,false).join('\n')){
+      const sb=new Map();b.forEach(x=>sb.set(x,(sb.get(x)||0)+1));let extra=0;a.forEach(x=>{if(sb.get(x))sb.set(x,sb.get(x)-1);else extra++});const miss=[...sb.values()].reduce((s,v)=>s+v,0);
+      html=`Aún no. ${extra?`Tu resultado tiene ${extra} fila(s) de más. `:''}${miss?`Faltan ${miss} fila(s). `:''}Revisa las condiciones.`}
+    else html='Las filas son correctas, pero el orden no. Revisa el ORDER BY.'}
+  if(ok){ui.solved.add(ui.reto);saveState();if(navigator.vibrate)navigator.vibrate([30,40,30])}
+  ui.retoMsg={ok,html,res:mine};renderSheet();runQuery(sql,true);
+}
+document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{ui.tab=b.dataset.m;document.body.classList.remove('mini');renderSheet()});
+$('grip').onclick=()=>document.body.classList.toggle('mini');
+document.querySelectorAll('.ui').forEach(el=>el.addEventListener('beforexrselect',e=>e.preventDefault()));
+$('btn3D').onclick=()=>{mode='3d';cam.auto=false;cam.yaw=0;cam.pitch=0.3;cam.dist=innerWidth<700?2.25:1.3;cam.target=[0,innerWidth<700?0.24:0.2,0];enterHUD('3D')};
+$('btnAR').onclick=startAR;
+$('btnCam').onclick=startCam;
+$('btnScale').onclick=()=>mode==='xr'?xrRescale():camRescale();
+$('btnExit').onclick=()=>{if(xrSession)xrSession.end();else{if(mode==='cam')stopCam();mode='intro';showStart()}};
+$('btnPlace').onclick=()=>{if(mode==='cam'){if(camS.gyro){camPlace();toast('Laboratorio colocado frente a ti')}else toast('Este dispositivo no tiene giroscopio: arrastra para girar.');return}placing=true;anchor=null;hint('Toca la pantalla para colocar la base de datos')};
+
+/* ---------- Arranque ---------- */
+function boot(){
+  if(!gl)return;
+  aniso=gl.getExtension('EXT_texture_filter_anisotropic');
+  initGL();CUBE=cubeMesh();RING=ringMesh(0.8,1,64);FLOOR=ringMesh(0,0.72,96);DISC=ringMesh(0.716,0.724,128);
+  loadState();layoutTables();resize();checkAR();requestAnimationFrame(loop);
+  const q=new URLSearchParams(location.search);
+  if(q.get('modo')==='3d')$('btn3D').click();
+}
+window.AR_SQL={runSql,runQuery,ui,scene,cam,renderSheet,showStep,player:()=>player,pausePlayer,onPick};
+boot();
+</script>
+</body>
+</html>
